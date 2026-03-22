@@ -258,7 +258,7 @@ await apiFetch('/api/orders', {
 
 ## 🚀 Production Checklist
 
-- [ ] Change ALL secrets in `.env` to strong random values (`openssl rand -hex 32`)
+- [Done] Change ALL secrets in `.env` to strong random values (`openssl rand -hex 32`)
 - [ ] Set `NODE_ENV=production`
 - [ ] Use HTTPS (Nginx/Caddy reverse proxy)
 - [ ] Set `cookie: { secure: true }` — auto-enabled in production
