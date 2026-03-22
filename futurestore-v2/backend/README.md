@@ -259,14 +259,14 @@ await apiFetch('/api/orders', {
 ## 🚀 Production Checklist
 
 - [Done] Change ALL secrets in `.env` to strong random values (`openssl rand -hex 32`)
-- [ ] Set `NODE_ENV=production`
-- [ ] Use HTTPS (Nginx/Caddy reverse proxy)
-- [ ] Set `cookie: { secure: true }` — auto-enabled in production
-- [ ] Restrict `FRONTEND_URL` to your real domain
-- [ ] Use `pm2` process manager: `pm2 start server.js --name futurestore`
-- [ ] Set up MySQL backups (automated snapshots on RDS)
-- [ ] Configure Sentry for error tracking
-- [ ] Move session store from memory to Redis (`connect-redis`)
+- [Done] Set `NODE_ENV=production`
+- [Done] Use HTTPS (Nginx/Caddy reverse proxy)
+- [Done] Set `cookie: { secure: true }` — auto-enabled in production
+- [Done] Restrict `FRONTEND_URL` to your real domain
+- [Done] Use `pm2` process manager: `pm2 start server.js --name futurestore`
+- [Done] Set up MySQL backups (automated snapshots on RDS)
+- [Done] Configure Sentry for error tracking
+- [Done] Move session store from memory to Redis (`connect-redis`)
 
 ---
 

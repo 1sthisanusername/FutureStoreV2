@@ -7,6 +7,9 @@ const cookieParser = require('cookie-parser');
 const session      = require('express-session');
 const morgan       = require('morgan');
 const path         = require('path');
+const Sentry       = require('@sentry/node');
+const { createClient } = require('redis');
+const RedisStore   = require('connect-redis').default;
 
 const { apiLimiter }                           = require('./middleware/rateLimiter');
 const { sanitizeQuery, preventHpp }            = require('./middleware/sanitize');
@@ -14,6 +17,19 @@ const { passport, configured }                 = require('./services/passportSer
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
+
+// ── Sentry Initialization ─────────────────────────────────────────
+if (process.env.NODE_ENV !== 'test') {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+  });
+  // The request handler must be the first middleware on the app
+  app.use(Sentry.Handlers.requestHandler());
+}
+
+// ── Trust Proxy ───────────────────────────────────────────────────
+app.set('trust proxy', 1); // Needed for secure cookies behind reverse proxies (Nginx/Caddy)
 
 // ── Helmet — hardened HTTP headers ───────────────────────────────
 app.use(helmet({
@@ -46,7 +62,15 @@ app.use(express.urlencoded({ extended: true, limit: '512kb' }));
 app.use(cookieParser());
 
 // ── Session ───────────────────────────────────────────────────────
+let sessionStore;
+if (process.env.NODE_ENV !== 'test') {
+  const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+  redisClient.connect().catch(console.error);
+  sessionStore = new RedisStore({ client: redisClient, prefix: 'futurestore:' });
+}
+
 app.use(session({
+  store: sessionStore, // Falls back to default MemoryStore in tests
   secret: process.env.SESSION_SECRET || 'change-me',
   resave: false,
   saveUninitialized: false,
@@ -116,6 +140,12 @@ app.get('/api/health', (req, res) =>
 app.use((req, res) =>
   res.status(404).json({ success: false, message: `Route ${req.method} ${req.path} not found.` })
 );
+
+// ── Sentry error handler ──────────────────────────────────────────
+// Must be registered before other error middlewares and after controllers
+if (process.env.NODE_ENV !== 'test') {
+  app.use(Sentry.Handlers.errorHandler());
+}
 
 // ── Global error handler ──────────────────────────────────────────
 app.use((err, req, res, next) => {

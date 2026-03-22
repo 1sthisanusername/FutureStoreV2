@@ -6,7 +6,7 @@ const app     = require('../server');
 jest.mock('../config/db', () => {
   const mockPool = {
     query: jest.fn(),
-    getConnection: jest.fn(),
+    connect: jest.fn(),
   };
   return mockPool;
 });
@@ -51,7 +51,7 @@ describe('Auth Endpoints', () => {
     });
 
     it('rejects invalid CAPTCHA (400)', async () => {
-      pool.query.mockResolvedValueOnce([[]]); // no existing user
+      pool.query.mockResolvedValueOnce({ rows: [] }); // no existing user
       const res = await request(app)
         .post('/api/auth/register')
         .send({ name: 'Jane', email: 'jane@test.com', password: 'Valid@123', captcha: 'wrong' });
@@ -76,7 +76,7 @@ describe('Auth Endpoints', () => {
 
   describe('POST /api/auth/forgot-password', () => {
     it('returns success even for unknown email (anti-enumeration)', async () => {
-      pool.query.mockResolvedValueOnce([[]]); // user not found
+      pool.query.mockResolvedValueOnce({ rows: [] }); // user not found
       const res = await request(app).post('/api/auth/forgot-password')
         .send({ email: 'unknown@test.com' });
       expect(res.status).toBe(200);
