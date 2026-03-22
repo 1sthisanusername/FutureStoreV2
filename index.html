@@ -1469,29 +1469,11 @@ body.guest .cover-gate-banner { display: flex; }
     </div>
     <div id="paypal-section" style="display:none">
       <div class="m-sec-title" style="margin-top:16px">PayPal</div>
-      <div class="gateway-box">
-        <div class="g-label">&#9881;&#65039; Configuration Required</div>
-        <div class="g-code"><span class="g-cc">// Replace with your PayPal Client ID</span><br><span class="g-key">CLIENT_ID</span> = <span class="g-val">"YOUR_PAYPAL_CLIENT_ID_HERE"</span></div>
-        <div class="g-steps">
-          <div class="g-step">1. Go to <strong>developer.paypal.com</strong> &#8594; My Apps &amp; Credentials</div>
-          <div class="g-step">2. Create App &#8594; copy <strong>Client ID</strong></div>
-          <div class="g-step">3. Use <strong>Sandbox</strong> for testing</div>
-        </div>
-      </div>
       <div id="paypal-btn-container" style="margin-top:14px;min-height:44px"></div>
       <div class="sandbox-tag">&#x1F9EA; Sandbox / Test Mode</div>
     </div>
     <div id="razorpay-section" style="display:none">
       <div class="m-sec-title" style="margin-top:16px">Razorpay</div>
-      <div class="gateway-box">
-        <div class="g-label">&#9881;&#65039; Configuration Required</div>
-        <div class="g-code"><span class="g-cc">// Replace with your Razorpay Key ID</span><br><span class="g-key">KEY_ID</span> = <span class="g-val">"YOUR_RAZORPAY_KEY_ID_HERE"</span></div>
-        <div class="g-steps">
-          <div class="g-step">1. Go to <strong>dashboard.razorpay.com</strong> &#8594; API Keys</div>
-          <div class="g-step">2. Generate test key &#8594; copy <strong>Key ID</strong> (<code>rzp_test_...</code>)</div>
-          <div class="g-step">3. Key Secret on <strong>backend only</strong></div>
-        </div>
-      </div>
       <button class="rzp-btn" onclick="launchRazorpay()">&#x26A1; Pay with Razorpay</button>
       <div class="sandbox-tag">&#x1F9EA; Test Mode</div>
     </div>
