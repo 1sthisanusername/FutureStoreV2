@@ -8,8 +8,8 @@ const session      = require('express-session');
 const morgan       = require('morgan');
 const path         = require('path');
 const Sentry       = require('@sentry/node');
-const { createClient } = require('redis');
-const RedisStore   = require('connect-redis').default;
+const pgSession    = require('connect-pg-simple')(session);
+const pool         = require('./config/db');
 
 const { apiLimiter }                           = require('./middleware/rateLimiter');
 const { sanitizeQuery, preventHpp }            = require('./middleware/sanitize');
@@ -64,9 +64,11 @@ app.use(cookieParser());
 // ── Session ───────────────────────────────────────────────────────
 let sessionStore;
 if (process.env.NODE_ENV !== 'test') {
-  const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
-  redisClient.connect().catch(console.error);
-  sessionStore = new RedisStore({ client: redisClient, prefix: 'futurestore:' });
+  sessionStore = new pgSession({
+    pool: pool,                // Connection pool
+    tableName: 'session',      // Use another table-name than the default "session" one
+    createTableIfMissing: true // Automatically creates the session table in Supabase
+  });
 }
 
 app.use(session({
