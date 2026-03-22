@@ -1,0 +1,267 @@
+// controllers/authController.js — Full auth: email+password, OTP, OAuth, JWT rotation
+const bcrypt  = require('bcrypt');
+const crypto  = require('crypto');
+const { v4: uuidv4 } = require('uuid');
+const svgCaptcha = require('svg-captcha');
+const pool    = require('../config/db');
+const { signAccess, signRefresh, storeRefreshToken, rotateRefreshToken, revokeAllTokens } = require('../utils/jwt');
+const { sendWelcome, sendPasswordReset, sendEmailVerification } = require('../services/emailService');
+const { sendOTP, verifyOTP } = require('../services/smsService');
+
+const SALT_ROUNDS = 12;
+const COOKIE_OPTS = { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' };
+
+const setTokenCookies = (res, accessToken, refreshToken) => {
+  res.cookie('token', accessToken, { ...COOKIE_OPTS, maxAge: 15 * 60 * 1000 });
+  res.cookie('refreshToken', refreshToken, { ...COOKIE_OPTS, maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/auth/refresh' });
+};
+
+// ── CAPTCHA ──────────────────────────────────────────────────────
+const getCaptcha = (req, res) => {
+  const captcha = svgCaptcha.create({ size: 6, noise: 3, color: true, background: '#f8f4ed', width: 160, height: 50, fontSize: 40 });
+  req.session.captchaText = captcha.text.toLowerCase();
+  res.type('svg').send(captcha.data);
+};
+
+// ── REGISTER ────────────────────────────────────────────────────
+const register = async (req, res) => {
+  const { name, email, password, captcha } = req.body;
+
+  if (!captcha || captcha.toLowerCase() !== req.session.captchaText)
+    return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
+  req.session.captchaText = null;
+
+  try {
+    const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length) return res.status(409).json({ success: false, message: 'Email already registered.' });
+
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    const uuid  = uuidv4();
+    const verifyToken = crypto.randomBytes(32).toString('hex');
+
+    const { rows: result } = await pool.query(
+      `INSERT INTO users (uuid, name, email, password_hash, role, email_verify_token)
+       VALUES (?, ?, ?, ?, 'customer', ?)
+       -- email_verify_token added dynamically; add column if not exists`,
+      [uuid, name.trim(), email.toLowerCase().trim(), hash, verifyToken]
+    );
+
+    const accessToken  = signAccess({ id: result.rows[0].id, role: 'customer' });
+    const refreshToken = signRefresh();
+    await storeRefreshToken(result.rows[0].id, refreshToken);
+    setTokenCookies(res, accessToken, refreshToken);
+
+    // Fire-and-forget emails
+    const verifyLink = `${process.env.FRONTEND_URL}/verify-email?token=${verifyToken}`;
+    sendWelcome({ name: name.trim(), email }).catch(() => {});
+    sendEmailVerification({ name: name.trim(), email }, verifyLink).catch(() => {});
+
+    return res.status(201).json({
+      success: true, message: 'Account created!',
+      token: accessToken,
+      user: { id: result.rows[0].id, uuid, name: name.trim(), email: email.toLowerCase(), role: 'customer' },
+    });
+  } catch (err) {
+    // Column may not exist yet — add it
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verify_token VARCHAR(64) DEFAULT NULL");
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified TINYINT(1) DEFAULT 0");
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64) DEFAULT NULL");
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires DATETIME DEFAULT NULL");
+    }
+    console.error('Register error:', err.message);
+    return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
+  }
+};
+
+// ── LOGIN ────────────────────────────────────────────────────────
+const login = async (req, res) => {
+  const { email, password, captcha } = req.body;
+
+  if (!captcha || captcha.toLowerCase() !== req.session.captchaText)
+    return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
+  req.session.captchaText = null;
+
+  try {
+    const { rows: rows } = await pool.query('SELECT * FROM users WHERE email = ? AND is_active = true', [email.toLowerCase().trim()]);
+    if (!rows.length) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+
+    const user = rows[0];
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      const mins = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
+      return res.status(423).json({ success: false, message: `Account locked. Try again in ${mins} min.` });
+    }
+
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) {
+      const attempts = (user.login_attempts || 0) + 1;
+      const lockUpdate = attempts >= 5 ? ', locked_until = DATE_ADD(NOW(), INTERVAL 30 MINUTE), login_attempts = 0' : '';
+      await pool.query(`UPDATE users SET login_attempts = ?${lockUpdate} WHERE id = ?`, [attempts >= 5 ? 0 : attempts, user.id]);
+      const left = 5 - attempts;
+      return res.status(401).json({ success: false, message: attempts >= 5 ? 'Account locked 30 min.' : `Invalid credentials. ${left} attempt(s) left.` });
+    }
+
+    await pool.query('UPDATE users SET login_attempts=0, locked_until=NULL, last_login=NOW() WHERE id=?', [user.id]);
+
+    const accessToken  = signAccess({ id: user.id, role: user.role });
+    const refreshToken = signRefresh();
+    await storeRefreshToken(user.id, refreshToken);
+    setTokenCookies(res, accessToken, refreshToken);
+
+    return res.json({
+      success: true, message: 'Login successful!', token: accessToken,
+      user: { id: user.id, uuid: user.uuid, name: user.name, email: user.email, role: user.role },
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── REFRESH TOKEN ────────────────────────────────────────────────
+const refresh = async (req, res) => {
+  const oldToken = req.cookies?.refreshToken || req.body?.refreshToken;
+  if (!oldToken) return res.status(401).json({ success: false, message: 'No refresh token.' });
+
+  try {
+    const userId = req.user?.id; // set by auth middleware (optional path)
+    // Decode user from access token (may be expired — that's OK here)
+    const payload = require('jsonwebtoken').decode(req.cookies?.token || '');
+    const uid = userId || payload?.id;
+    if (!uid) return res.status(401).json({ success: false, message: 'Cannot identify user.' });
+
+    const newRefresh = await rotateRefreshToken(uid, oldToken);
+    const newAccess  = signAccess({ id: uid, role: payload?.role });
+    setTokenCookies(res, newAccess, newRefresh);
+
+    return res.json({ success: true, token: newAccess });
+  } catch (err) {
+    return res.status(401).json({ success: false, message: err.message });
+  }
+};
+
+// ── LOGOUT ───────────────────────────────────────────────────────
+const logout = async (req, res) => {
+  if (req.user?.id) await revokeAllTokens(req.user.id).catch(() => {});
+  res.clearCookie('token');
+  res.clearCookie('refreshToken');
+  res.json({ success: true, message: 'Logged out.' });
+};
+
+// ── PHONE OTP ────────────────────────────────────────────────────
+const sendPhoneOTP = async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ success: false, message: 'Phone number required.' });
+  await sendOTP(phone);
+  res.json({ success: true, message: 'OTP sent.' });
+};
+
+const verifyPhoneOTP = async (req, res) => {
+  const { phone, otp, name, email } = req.body;
+  const result = verifyOTP(phone, otp);
+  if (!result.valid) return res.status(400).json({ success: false, message: result.message });
+
+  // Check if user exists
+  let [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email?.toLowerCase()]);
+  let user = rows[0];
+
+  if (!user) {
+    // Auto-register via phone
+    const uuid = uuidv4();
+    const { rows: ins } = await pool.query(
+      `INSERT INTO users (uuid, name, email, password_hash, role) VALUES (?,?,?,?,?)`,
+      [uuid, name || phone, email || `${phone}@phone.local`, bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10), 'customer']
+    );
+    user = { id: ins.rows[0].id, uuid, name: name || phone, email: email || `${phone}@phone.local`, role: 'customer' };
+  }
+
+  const accessToken  = signAccess({ id: user.id, role: user.role });
+  const refreshToken = signRefresh();
+  await storeRefreshToken(user.id, refreshToken);
+  setTokenCookies(res, accessToken, refreshToken);
+
+  res.json({ success: true, token: accessToken, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+};
+
+// ── OAUTH GOOGLE ─────────────────────────────────────────────────
+const googleOAuthCallback = async (req, res) => {
+  // Called after passport.js verifies Google token
+  // req.user is set by passport
+  const user = req.user;
+  const accessToken  = signAccess({ id: user.id, role: user.role });
+  const refreshToken = signRefresh();
+  await storeRefreshToken(user.id, refreshToken);
+  setTokenCookies(res, accessToken, refreshToken);
+  res.redirect(`${process.env.FRONTEND_URL}?auth=success`);
+};
+
+// ── FORGOT PASSWORD ──────────────────────────────────────────────
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const { rows: rows } = await pool.query('SELECT id, name FROM users WHERE email = ?', [email?.toLowerCase()]);
+    if (!rows.length) return res.json({ success: true, message: 'If that email exists, a reset link was sent.' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await pool.query('UPDATE users SET reset_token=?, reset_token_expires=? WHERE id=?', [token, expires, rows[0].id]);
+
+    const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    sendPasswordReset({ name: rows[0].name, email }, link).catch(() => {});
+
+    res.json({ success: true, message: 'Password reset email sent.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error sending reset email.' });
+  }
+};
+
+// ── RESET PASSWORD ───────────────────────────────────────────────
+const resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+  const { rows: rows } = await pool.query(
+    'SELECT id FROM users WHERE reset_token=? AND reset_token_expires > NOW()', [token]
+  );
+  if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
+
+  const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await pool.query('UPDATE users SET password_hash=?, reset_token=NULL, reset_token_expires=NULL WHERE id=?', [hash, rows[0].id]);
+  await revokeAllTokens(rows[0].id);
+
+  res.json({ success: true, message: 'Password reset successfully. Please log in.' });
+};
+
+// ── VERIFY EMAIL ─────────────────────────────────────────────────
+const verifyEmail = async (req, res) => {
+  const { token } = req.query;
+  const { rows: rows } = await pool.query('SELECT id FROM users WHERE email_verify_token=?', [token]);
+  if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid verification link.' });
+  await pool.query('UPDATE users SET email_verified=1, email_verify_token=NULL WHERE id=?', [rows[0].id]);
+  res.json({ success: true, message: 'Email verified successfully!' });
+};
+
+// ── ME / CHANGE PASSWORD ─────────────────────────────────────────
+const me = async (req, res) => {
+  const { rows: rows } = await pool.query(
+    'SELECT id, uuid, name, email, role, created_at, last_login FROM users WHERE id = ?', [req.user.id]
+  );
+  res.json({ success: true, data: rows[0] });
+};
+
+const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const { rows: rows } = await pool.query('SELECT password_hash FROM users WHERE id=?', [req.user.id]);
+  const match = await bcrypt.compare(currentPassword, rows[0].password_hash);
+  if (!match) return res.status(400).json({ success: false, message: 'Current password incorrect.' });
+  const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await pool.query('UPDATE users SET password_hash=? WHERE id=?', [hash, req.user.id]);
+  await revokeAllTokens(req.user.id);
+  res.json({ success: true, message: 'Password updated. Please log in again.' });
+};
+
+module.exports = {
+  getCaptcha, register, login, refresh, logout,
+  sendPhoneOTP, verifyPhoneOTP, googleOAuthCallback,
+  forgotPassword, resetPassword, verifyEmail,
+  me, changePassword,
+};
