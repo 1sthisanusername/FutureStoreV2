@@ -1715,8 +1715,8 @@ const DB = {
 // ================================================================
 // PAYMENT KEYS — replace with real credentials
 // ================================================================
-const PAYPAL_CLIENT_ID='YOUR_PAYPAL_CLIENT_ID_HERE';
-const RAZORPAY_KEY_ID='YOUR_RAZORPAY_KEY_ID_HERE';
+const PAYPAL_CLIENT_ID='AUq38z0Ra6r4LfVsEhU2fY9xjbPYJGoxTi8VwfC6J0GoJhzTMtIfPk6qCjymSh85ZECRpV3XyU4kfCo4';
+const RAZORPAY_KEY_ID='rzp_test_SSMRZg5j2iPQ9l';
 
 // ================================================================
 // FILTER STATE — mirrors SQL query parameters
@@ -3593,10 +3593,11 @@ function setUser(user){
 // ================================================================
 // PATCH: logoutUser
 // ================================================================
-function logoutUser(){
+async function logoutUser(){
   cart=[];wishlist=[];orderHistory=[];
   updateCartUI();renderWishlistPage();renderOrdersPage();
   setUser(null);
+  await apiFetch('/auth/logout', { method: 'POST' }).catch(()=>{});
   showToast('Signed out.');closeUserDropdown();
   if(['page-account','page-orders','page-wishlist','page-admin'].includes(document.querySelector('.page.active')?.id))goPage('home');
 }
