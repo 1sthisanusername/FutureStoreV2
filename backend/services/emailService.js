@@ -13,7 +13,11 @@ const send = async ({ to, subject, html, text }) => {
     console.log(`[EMAIL MOCK] To: ${to} | Subject: ${subject}`);
     return;
   }
-  await sgMail.send({ to, from: FROM, subject, html, text });
+  try {
+    await sgMail.send({ to, from: FROM, subject, html, text });
+  } catch (err) {
+    console.error('Email send error:', err.response?.body || err.message);
+  }
 };
 
 // ── Templates ─────────────────────────────────────────────────────

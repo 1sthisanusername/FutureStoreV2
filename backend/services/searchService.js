@@ -19,22 +19,30 @@ try {
 
 const indexBook = async (book) => {
   if (!algoliaIndex) return;
-  await algoliaIndex.saveObject({
-    objectID: String(book.id),
-    title:    book.title,
-    author:   book.author,
-    genre:    book.genre,
-    price:    book.price,
-    rating:   book.rating,
-    badge:    book.badge,
-    stock:    book.stock,
-    cover_color: book.cover_color,
-  });
+  try {
+    await algoliaIndex.saveObject({
+      objectID: String(book.id),
+      title:    book.title,
+      author:   book.author,
+      genre:    book.genre,
+      price:    book.price,
+      rating:   book.rating,
+      badge:    book.badge,
+      stock:    book.stock,
+      cover_color: book.cover_color,
+    });
+  } catch (err) {
+    console.error('Algolia index error:', err.message);
+  }
 };
 
 const removeBook = async (bookId) => {
   if (!algoliaIndex) return;
-  await algoliaIndex.deleteObject(String(bookId));
+  try {
+    await algoliaIndex.deleteObject(String(bookId));
+  } catch (err) {
+    console.error('Algolia delete error:', err.message);
+  }
 };
 
 // ── Search ────────────────────────────────────────────────────────
@@ -42,24 +50,29 @@ const removeBook = async (bookId) => {
 const search = async (query, filters = {}) => {
   if (!algoliaIndex) return null; // caller falls back to MySQL
 
-  const algoliaFilters = [];
-  if (filters.genre)     algoliaFilters.push(`genre:"${filters.genre}"`);
-  if (filters.minPrice)  algoliaFilters.push(`price >= ${filters.minPrice}`);
-  if (filters.maxPrice)  algoliaFilters.push(`price <= ${filters.maxPrice}`);
-  if (filters.minRating) algoliaFilters.push(`rating >= ${filters.minRating}`);
+  try {
+    const algoliaFilters = [];
+    if (filters.genre)     algoliaFilters.push(`genre:"${filters.genre}"`);
+    if (filters.minPrice)  algoliaFilters.push(`price >= ${filters.minPrice}`);
+    if (filters.maxPrice)  algoliaFilters.push(`price <= ${filters.maxPrice}`);
+    if (filters.minRating) algoliaFilters.push(`rating >= ${filters.minRating}`);
 
-  const result = await algoliaIndex.search(query, {
-    filters: algoliaFilters.join(' AND '),
-    hitsPerPage: filters.limit || 20,
-    page: (filters.page || 1) - 1,
-    attributesToRetrieve: ['objectID','title','author','genre','price','rating','badge','cover_color'],
-  });
+    const result = await algoliaIndex.search(query, {
+      filters: algoliaFilters.join(' AND '),
+      hitsPerPage: filters.limit || 20,
+      page: (filters.page || 1) - 1,
+      attributesToRetrieve: ['objectID','title','author','genre','price','rating','badge','cover_color'],
+    });
 
-  return {
-    hits:  result.hits.map(h => ({ ...h, id: parseInt(h.objectID) })),
-    total: result.nbHits,
-    pages: result.nbPages,
-  };
+    return {
+      hits:  result.hits.map(h => ({ ...h, id: parseInt(h.objectID) })),
+      total: result.nbHits,
+      pages: result.nbPages,
+    };
+  } catch (err) {
+    console.error('Algolia search error:', err.message);
+    throw err;
+  }
 };
 
 module.exports = { indexBook, removeBook, search };

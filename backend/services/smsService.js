@@ -23,17 +23,21 @@ const sendOTP = async (phone) => {
   const otp = generateOTP();
   otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
 
-  if (twilioClient) {
-    await twilioClient.messages.create({
-      body: `Your Future Store OTP is: ${otp}. Valid for 5 minutes.`,
-      from: process.env.TWILIO_FROM,
-      to:   phone,
-    });
-  } else {
-    console.log(`[OTP MOCK] Phone: ${phone} | OTP: ${otp}`); // dev mode
+  try {
+    if (twilioClient) {
+      await twilioClient.messages.create({
+        body: `Your Future Store OTP is: ${otp}. Valid for 5 minutes.`,
+        from: process.env.TWILIO_FROM,
+        to:   phone,
+      });
+    } else {
+      console.log(`[OTP MOCK] Phone: ${phone} | OTP: ${otp}`); // dev mode
+    }
+    return { sent: true };
+  } catch (err) {
+    console.error('Twilio send OTP error:', err.message);
+    throw new Error('Failed to send OTP. Please try again later.');
   }
-
-  return { sent: true };
 };
 
 const verifyOTP = (phone, inputOtp) => {

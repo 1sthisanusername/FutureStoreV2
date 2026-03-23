@@ -41,24 +41,34 @@ const getBooks = async (req, res) => {
 
 // ── SINGLE BOOK ──────────────────────────────────────────────────
 const getBook = async (req, res) => {
-  const { rows: rows } = await pool.query('SELECT * FROM books WHERE id=? AND is_active=true', [req.params.id]);
-  if (!rows.length) return res.status(404).json({ success:false, message:'Book not found.' });
-  const { rows: reviews } = await pool.query(
-    `SELECT r.*, u.name AS reviewer_name FROM reviews r JOIN users u ON u.id=r.user_id WHERE r.book_id=? ORDER BY r.created_at DESC LIMIT 10`,
-    [req.params.id]
-  );
-  // Related books (same genre, different book)
-  const { rows: related } = await pool.query(
-    'SELECT id,title,author,genre,price,rating,cover_color,badge FROM books WHERE genre=? AND id!=? AND is_active=true ORDER BY rating DESC LIMIT 4',
-    [rows[0].genre, req.params.id]
-  );
-  res.json({ success:true, data: { ...rows[0], reviews, related } });
+  try {
+    const { rows: rows } = await pool.query('SELECT * FROM books WHERE id=? AND is_active=true', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ success:false, message:'Book not found.' });
+    const { rows: reviews } = await pool.query(
+      `SELECT r.*, u.name AS reviewer_name FROM reviews r JOIN users u ON u.id=r.user_id WHERE r.book_id=? ORDER BY r.created_at DESC LIMIT 10`,
+      [req.params.id]
+    );
+    // Related books (same genre, different book)
+    const { rows: related } = await pool.query(
+      'SELECT id,title,author,genre,price,rating,cover_color,badge FROM books WHERE genre=? AND id!=? AND is_active=true ORDER BY rating DESC LIMIT 4',
+      [rows[0].genre, req.params.id]
+    );
+    res.json({ success:true, data: { ...rows[0], reviews, related } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch book.' });
+  }
 };
 
 // ── GENRES ───────────────────────────────────────────────────────
 const getGenres = async (req, res) => {
-  const { rows: rows } = await pool.query('SELECT genre, COUNT(*) AS count FROM books WHERE is_active=true GROUP BY genre ORDER BY count DESC');
-  res.json({ success:true, data: rows });
+  try {
+    const { rows: rows } = await pool.query('SELECT genre, COUNT(*) AS count FROM books WHERE is_active=true GROUP BY genre ORDER BY count DESC');
+    res.json({ success:true, data: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch genres.' });
+  }
 };
 
 // ── ADD REVIEW ───────────────────────────────────────────────────
@@ -66,16 +76,16 @@ const addReview = async (req, res) => {
   const { rating, comment } = req.body;
   const bookId = req.params.id;
 
-  // Verified buyer check
-  const { rows: orders } = await pool.query(
-    `SELECT o.id FROM orders o JOIN order_items oi ON oi.order_id=o.id
-     WHERE o.user_id=? AND oi.book_id=? AND o.status IN ('delivered','confirmed')`,
-    [req.user.id, bookId]
-  );
-  if (!orders.length)
-    return res.status(403).json({ success:false, message:'Only verified buyers can review this book.' });
-
   try {
+    // Verified buyer check
+    const { rows: orders } = await pool.query(
+      `SELECT o.id FROM orders o JOIN order_items oi ON oi.order_id=o.id
+       WHERE o.user_id=? AND oi.book_id=? AND o.status IN ('delivered','confirmed')`,
+      [req.user.id, bookId]
+    );
+    if (!orders.length)
+      return res.status(403).json({ success:false, message:'Only verified buyers can review this book.' });
+
     await pool.query('INSERT INTO reviews (book_id,user_id,rating,comment) VALUES (?,?,?,?)', [bookId, req.user.id, rating, comment||null]);
     await pool.query(
       `UPDATE books SET rating=(SELECT AVG(rating) FROM reviews WHERE book_id=?), reviews_count=(SELECT COUNT(*) FROM reviews WHERE book_id=?) WHERE id=?`,
@@ -84,19 +94,25 @@ const addReview = async (req, res) => {
     res.status(201).json({ success:true, message:'Review submitted!' });
   } catch (err) {
     if (err.code==='ER_DUP_ENTRY') return res.status(409).json({ success:false, message:'You already reviewed this book.' });
-    throw err;
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to add review.' });
   }
 };
 
 // ── SEARCH SUGGESTIONS (autocomplete) ───────────────────────────
 const suggest = async (req, res) => {
-  const { q } = req.query;
-  if (!q || q.length < 2) return res.json({ success:true, data:[] });
-  const { rows: rows } = await pool.query(
-    `SELECT id, title, author, genre FROM books WHERE (title LIKE ? OR author LIKE ?) AND is_active=true LIMIT 8`,
-    [`%${q}%`, `%${q}%`]
-  );
-  res.json({ success:true, data:rows });
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json({ success:true, data:[] });
+    const { rows: rows } = await pool.query(
+      `SELECT id, title, author, genre FROM books WHERE (title LIKE ? OR author LIKE ?) AND is_active=true LIMIT 8`,
+      [`%${q}%`, `%${q}%`]
+    );
+    res.json({ success:true, data:rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch suggestions.' });
+  }
 };
 
 module.exports = { getBooks, getBook, getGenres, addReview, suggest };

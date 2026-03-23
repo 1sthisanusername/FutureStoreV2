@@ -69,7 +69,7 @@ const register = async (req, res) => {
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64) DEFAULT NULL");
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires DATETIME DEFAULT NULL");
     }
-    console.error('Register error:', err.message);
+    console.error('Register error:', err);
     return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
   }
 };
@@ -157,42 +157,52 @@ const sendPhoneOTP = async (req, res) => {
 };
 
 const verifyPhoneOTP = async (req, res) => {
-  const { phone, otp, name, email } = req.body;
-  const result = verifyOTP(phone, otp);
-  if (!result.valid) return res.status(400).json({ success: false, message: result.message });
+  try {
+    const { phone, otp, name, email } = req.body;
+    const result = verifyOTP(phone, otp);
+    if (!result.valid) return res.status(400).json({ success: false, message: result.message });
 
-  // Check if user exists
-  let [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email?.toLowerCase()]);
-  let user = rows[0];
+    // Check if user exists
+    let [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email?.toLowerCase()]);
+    let user = rows[0];
 
-  if (!user) {
-    // Auto-register via phone
-    const uuid = uuidv4();
-    const { rows: ins } = await pool.query(
-      `INSERT INTO users (uuid, name, email, password_hash, role) VALUES (?,?,?,?,?)`,
-      [uuid, name || phone, email || `${phone}@phone.local`, bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10), 'customer']
-    );
-    user = { id: ins.rows[0].id, uuid, name: name || phone, email: email || `${phone}@phone.local`, role: 'customer' };
+    if (!user) {
+      // Auto-register via phone
+      const uuid = uuidv4();
+      const { rows: ins } = await pool.query(
+        `INSERT INTO users (uuid, name, email, password_hash, role) VALUES (?,?,?,?,?)`,
+        [uuid, name || phone, email || `${phone}@phone.local`, bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10), 'customer']
+      );
+      user = { id: ins.rows[0].id, uuid, name: name || phone, email: email || `${phone}@phone.local`, role: 'customer' };
+    }
+
+    const accessToken  = signAccess({ id: user.id, role: user.role });
+    const refreshToken = signRefresh();
+    await storeRefreshToken(user.id, refreshToken);
+    setTokenCookies(res, accessToken, refreshToken);
+
+    res.json({ success: true, token: accessToken, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to verify OTP.' });
   }
-
-  const accessToken  = signAccess({ id: user.id, role: user.role });
-  const refreshToken = signRefresh();
-  await storeRefreshToken(user.id, refreshToken);
-  setTokenCookies(res, accessToken, refreshToken);
-
-  res.json({ success: true, token: accessToken, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 };
 
 // ── OAUTH GOOGLE ─────────────────────────────────────────────────
 const googleOAuthCallback = async (req, res) => {
-  // Called after passport.js verifies Google token
-  // req.user is set by passport
-  const user = req.user;
-  const accessToken  = signAccess({ id: user.id, role: user.role });
-  const refreshToken = signRefresh();
-  await storeRefreshToken(user.id, refreshToken);
-  setTokenCookies(res, accessToken, refreshToken);
-  res.redirect(`${process.env.FRONTEND_URL}?auth=success`);
+  try {
+    // Called after passport.js verifies Google token
+    // req.user is set by passport
+    const user = req.user;
+    const accessToken  = signAccess({ id: user.id, role: user.role });
+    const refreshToken = signRefresh();
+    await storeRefreshToken(user.id, refreshToken);
+    setTokenCookies(res, accessToken, refreshToken);
+    res.redirect(`${process.env.FRONTEND_URL}?auth=success`);
+  } catch (err) {
+    console.error(err);
+    res.redirect(`${process.env.FRONTEND_URL}?auth=fail`);
+  }
 };
 
 // ── FORGOT PASSWORD ──────────────────────────────────────────────
@@ -218,45 +228,65 @@ const forgotPassword = async (req, res) => {
 
 // ── RESET PASSWORD ───────────────────────────────────────────────
 const resetPassword = async (req, res) => {
-  const { token, newPassword } = req.body;
-  const { rows: rows } = await pool.query(
-    'SELECT id FROM users WHERE reset_token=? AND reset_token_expires > NOW()', [token]
-  );
-  if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
+  try {
+    const { token, newPassword } = req.body;
+    const { rows: rows } = await pool.query(
+      'SELECT id FROM users WHERE reset_token=? AND reset_token_expires > NOW()', [token]
+    );
+    if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
 
-  const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  await pool.query('UPDATE users SET password_hash=?, reset_token=NULL, reset_token_expires=NULL WHERE id=?', [hash, rows[0].id]);
-  await revokeAllTokens(rows[0].id);
+    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await pool.query('UPDATE users SET password_hash=?, reset_token=NULL, reset_token_expires=NULL WHERE id=?', [hash, rows[0].id]);
+    await revokeAllTokens(rows[0].id);
 
-  res.json({ success: true, message: 'Password reset successfully. Please log in.' });
+    res.json({ success: true, message: 'Password reset successfully. Please log in.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to reset password.' });
+  }
 };
 
 // ── VERIFY EMAIL ─────────────────────────────────────────────────
 const verifyEmail = async (req, res) => {
-  const { token } = req.query;
-  const { rows: rows } = await pool.query('SELECT id FROM users WHERE email_verify_token=?', [token]);
-  if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid verification link.' });
-  await pool.query('UPDATE users SET email_verified=1, email_verify_token=NULL WHERE id=?', [rows[0].id]);
-  res.json({ success: true, message: 'Email verified successfully!' });
+  try {
+    const { token } = req.query;
+    const { rows: rows } = await pool.query('SELECT id FROM users WHERE email_verify_token=?', [token]);
+    if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid verification link.' });
+    await pool.query('UPDATE users SET email_verified=1, email_verify_token=NULL WHERE id=?', [rows[0].id]);
+    res.json({ success: true, message: 'Email verified successfully!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to verify email.' });
+  }
 };
 
 // ── ME / CHANGE PASSWORD ─────────────────────────────────────────
 const me = async (req, res) => {
-  const { rows: rows } = await pool.query(
-    'SELECT id, uuid, name, email, role, created_at, last_login FROM users WHERE id = ?', [req.user.id]
-  );
-  res.json({ success: true, data: rows[0] });
+  try {
+    const { rows: rows } = await pool.query(
+      'SELECT id, uuid, name, email, role, created_at, last_login FROM users WHERE id = ?', [req.user.id]
+    );
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch user profile.' });
+  }
 };
 
 const changePassword = async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
-  const { rows: rows } = await pool.query('SELECT password_hash FROM users WHERE id=?', [req.user.id]);
-  const match = await bcrypt.compare(currentPassword, rows[0].password_hash);
-  if (!match) return res.status(400).json({ success: false, message: 'Current password incorrect.' });
-  const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  await pool.query('UPDATE users SET password_hash=? WHERE id=?', [hash, req.user.id]);
-  await revokeAllTokens(req.user.id);
-  res.json({ success: true, message: 'Password updated. Please log in again.' });
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const { rows: rows } = await pool.query('SELECT password_hash FROM users WHERE id=?', [req.user.id]);
+    const match = await bcrypt.compare(currentPassword, rows[0].password_hash);
+    if (!match) return res.status(400).json({ success: false, message: 'Current password incorrect.' });
+    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await pool.query('UPDATE users SET password_hash=? WHERE id=?', [hash, req.user.id]);
+    await revokeAllTokens(req.user.id);
+    res.json({ success: true, message: 'Password updated. Please log in again.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to change password.' });
+  }
 };
 
 module.exports = {

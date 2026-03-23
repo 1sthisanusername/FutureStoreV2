@@ -85,21 +85,119 @@ const placeOrder = async (req, res) => {
 
 // ── MY ORDERS ────────────────────────────────────────────────────
 const myOrders = async (req, res) => {
-  const { rows: orders } = await pool.query('SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC', [req.user.id]);
-  for (const o of orders) {
-    const { rows } = await pool.query(`SELECT oi.*,b.title,b.author,b.cover_color FROM order_items oi JOIN books b ON b.id=oi.book_id WHERE oi.order_id=?`, [o.id]);
-    o.items = rows;
+  try {
+    const { rows: orders } = await pool.query(
+      `SELECT
+        o.id AS order_id, o.*,
+        oi.id AS item_id, oi.qty, oi.unit_price,
+        b.id AS book_id, b.title, b.author, b.cover_color
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN books b ON b.id = oi.book_id
+      WHERE o.user_id = ?
+      ORDER BY o.created_at DESC, o.id DESC`,
+      [req.user.id]
+    );
+
+    const ordersMap = new Map();
+    for (const row of orders) {
+      if (!ordersMap.has(row.order_id)) {
+        ordersMap.set(row.order_id, {
+          id: row.order_id,
+          order_number: row.order_number,
+          status: row.status,
+          subtotal: row.subtotal,
+          shipping_fee: row.shipping_fee,
+          total: row.total,
+          discount: row.discount,
+          coupon_code: row.coupon_code,
+          created_at: row.created_at,
+          items: [],
+        });
+      }
+      ordersMap.get(row.order_id).items.push({
+        id: row.item_id,
+        book_id: row.book_id,
+        qty: row.qty,
+        unit_price: row.unit_price,
+        title: row.title,
+        author: row.author,
+        cover_color: row.cover_color,
+      });
+    }
+
+    res.json({ success: true, data: Array.from(ordersMap.values()) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch orders.' });
   }
-  res.json({ success:true, data:orders });
 };
 
 // ── SINGLE ORDER ─────────────────────────────────────────────────
 const getOrder = async (req, res) => {
-  const { rows } = await pool.query('SELECT * FROM orders WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
-  if (!rows.length) return res.status(404).json({ success:false, message:'Order not found.' });
-  const { rows: items } = await pool.query(`SELECT oi.*,b.title,b.author FROM order_items oi JOIN books b ON b.id=oi.book_id WHERE oi.order_id=?`, [rows[0].id]);
-  const { rows: history } = await pool.query('SELECT * FROM order_status_history WHERE order_id=? ORDER BY created_at ASC', [rows[0].id]);
-  res.json({ success:true, data: { ...rows[0], items, history } });
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+        o.*,
+        oi.id AS item_id, oi.qty, oi.unit_price,
+        b.id AS book_id, b.title, b.author,
+        h.id AS history_id, h.status AS history_status, h.note AS history_note, h.created_at AS history_date
+      FROM orders o
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN books b ON b.id = oi.book_id
+      LEFT JOIN order_status_history h ON h.order_id = o.id
+      WHERE o.id = ? AND o.user_id = ?
+      ORDER BY h.created_at ASC`,
+      [req.params.id, req.user.id]
+    );
+
+    if (!rows.length) return res.status(404).json({ success:false, message:'Order not found.' });
+
+    const order = {
+      id: rows[0].id,
+      order_number: rows[0].order_number,
+      status: rows[0].status,
+      subtotal: rows[0].subtotal,
+      shipping_fee: rows[0].shipping_fee,
+      total: rows[0].total,
+      discount: rows[0].discount,
+      coupon_code: rows[0].coupon_code,
+      created_at: rows[0].created_at,
+      items: [],
+      history: [],
+    };
+
+    const itemsMap = new Map();
+    const historyMap = new Map();
+
+    for (const row of rows) {
+      if (row.item_id && !itemsMap.has(row.item_id)) {
+        itemsMap.set(row.item_id, true);
+        order.items.push({
+          id: row.item_id,
+          book_id: row.book_id,
+          qty: row.qty,
+          unit_price: row.unit_price,
+          title: row.title,
+          author: row.author,
+        });
+      }
+      if (row.history_id && !historyMap.has(row.history_id)) {
+        historyMap.set(row.history_id, true);
+        order.history.push({
+          id: row.history_id,
+          status: row.history_status,
+          note: row.history_note,
+          created_at: row.history_date,
+        });
+      }
+    }
+
+    res.json({ success:true, data: order });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch order details.' });
+  }
 };
 
 // ── CANCEL ORDER ─────────────────────────────────────────────────
@@ -125,23 +223,33 @@ const cancelOrder = async (req, res) => {
 
 // ── INVOICE ──────────────────────────────────────────────────────
 const getInvoice = async (req, res) => {
-  const { rows } = await pool.query('SELECT * FROM orders WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
-  if (!rows.length) return res.status(404).json({ success:false, message:'Order not found.' });
-  const { rows: items } = await pool.query(`SELECT oi.*,b.title,b.author FROM order_items oi JOIN books b ON b.id=oi.book_id WHERE oi.order_id=?`, [rows[0].id]);
-  const html = generateInvoiceHTML(rows[0], items, req.user);
-  res.setHeader('Content-Type', 'text/html');
-  res.send(html);
+  try {
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
+    if (!rows.length) return res.status(404).json({ success:false, message:'Order not found.' });
+    const { rows: items } = await pool.query(`SELECT oi.*,b.title,b.author FROM order_items oi JOIN books b ON b.id=oi.book_id WHERE oi.order_id=?`, [rows[0].id]);
+    const html = generateInvoiceHTML(rows[0], items, req.user);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to generate invoice.' });
+  }
 };
 
 // ── VALIDATE COUPON ──────────────────────────────────────────────
 const validateCoupon = async (req, res) => {
-  const { code, subtotal } = req.body;
-  const { rows } = await pool.query(`SELECT * FROM coupons WHERE code=? AND is_active=true AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR uses < max_uses)`, [code?.toUpperCase()]);
-  if (!rows.length) return res.status(404).json({ success:false, message:'Invalid or expired coupon.' });
-  const coupon = rows[0];
-  if (subtotal < coupon.min_order) return res.status(400).json({ success:false, message:`Minimum order $${coupon.min_order} required.` });
-  const discount = coupon.type==='percent' ? subtotal*(coupon.value/100) : coupon.value;
-  res.json({ success:true, data: { code:coupon.code, type:coupon.type, value:coupon.value, discount:Math.min(discount,subtotal) } });
+  try {
+    const { code, subtotal } = req.body;
+    const { rows } = await pool.query(`SELECT * FROM coupons WHERE code=? AND is_active=true AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR uses < max_uses)`, [code?.toUpperCase()]);
+    if (!rows.length) return res.status(404).json({ success:false, message:'Invalid or expired coupon.' });
+    const coupon = rows[0];
+    if (subtotal < coupon.min_order) return res.status(400).json({ success:false, message:`Minimum order $${coupon.min_order} required.` });
+    const discount = coupon.type==='percent' ? subtotal*(coupon.value/100) : coupon.value;
+    res.json({ success:true, data: { code:coupon.code, type:coupon.type, value:coupon.value, discount:Math.min(discount,subtotal) } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to validate coupon.' });
+  }
 };
 
 module.exports = { placeOrder, myOrders, getOrder, cancelOrder, getInvoice, validateCoupon };

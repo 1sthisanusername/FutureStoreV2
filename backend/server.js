@@ -71,6 +71,11 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
+if (process.env.NODE_ENV === 'production' && process.env.SESSION_SECRET === 'change-me') {
+  console.error('❌  FATAL: SESSION_SECRET must be set to a secure, random string in production!');
+  process.exit(1);
+}
+
 app.use(session({
   store: sessionStore, // Falls back to default MemoryStore in tests
   secret: process.env.SESSION_SECRET || 'change-me',
