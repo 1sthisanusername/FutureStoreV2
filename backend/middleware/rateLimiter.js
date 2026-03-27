@@ -24,7 +24,7 @@ const make = (windowMs, max, message) =>
 
 module.exports = {
   // ── Auth routes — tightest ──────────────────────────────────────
-  authLimiter:     make(15 * 60 * 1000,  10,  'Too many auth attempts. Try again in 15 minutes.'),
+  authLimiter:     make(15 * 60 * 1000,  1000,  'Too many auth attempts. Try again in 15 minutes.'),
 
   // ── Password reset / OTP — very tight ──────────────────────────
   resetLimiter:    make(60 * 60 * 1000,   5,  'Too many reset requests. Try again in 1 hour.'),

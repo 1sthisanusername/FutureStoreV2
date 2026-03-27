@@ -543,12 +543,6 @@ body.guest .cover-gate-banner { display: flex; }
 .password-wrap{position:relative}
 .password-wrap .auth-input{padding-right:42px}
 .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--mid-brown);padding:4px}
-.captcha-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.captcha-img{border:1px solid var(--border-strong);border-radius:6px;overflow:hidden;cursor:pointer;flex-shrink:0;background:var(--cream);display:flex;align-items:center;justify-content:center;height:50px;min-width:160px}
-.captcha-input{flex:1;padding:11px 14px;border:1px solid var(--border-strong);border-radius:8px;font-family:var(--font-body);font-size:14px;color:var(--ink);background:var(--cream);outline:none;transition:border .2s}
-.captcha-input:focus{border-color:var(--cta);box-shadow:0 0 0 3px rgba(93,138,168,.12)}
-.captcha-refresh{background:none;border:none;cursor:pointer;color:var(--mid-brown);font-size:16px;padding:4px;flex-shrink:0;transition:transform .3s}
-.captcha-refresh:hover{transform:rotate(180deg);color:var(--cta)}
 .auth-submit{width:100%;background:var(--cta);color:white;border:none;padding:13px;border-radius:8px;font-family:var(--font-body);font-size:15px;font-weight:500;cursor:pointer;transition:all .2s;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px}
 .auth-submit:hover{background:#3d6a88;transform:translateY(-1px)}
 .auth-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
@@ -564,6 +558,11 @@ body.guest .cover-gate-banner { display: flex; }
 .pw-bar.fair{background:var(--gold)}
 .pw-bar.strong{background:var(--green)}
 .pw-label{font-size:10px;color:var(--mid-brown);margin-top:3px}
+.captcha-row{display:flex;align-items:center;gap:10px;margin-top:14px;background:var(--cream);padding:8px;border-radius:8px;border:1px solid var(--border-strong)}
+.captcha-img{height:40px;flex:1;background:white;border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
+.captcha-refresh{width:32px;height:32px;border-radius:50%;border:1px solid var(--border-strong);background:white;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .2s}
+.captcha-refresh:hover{background:var(--cta-light);color:var(--cta);border-color:var(--cta)}
+.captcha-row .auth-input{width:110px;margin-bottom:0}
 
 /* ── USER ACCOUNT DROPDOWN ───────────────────────────────── */
 .user-btn{display:flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--border-strong);border-radius:24px;padding:6px 14px 6px 8px;cursor:pointer;font-family:var(--font-body);font-size:13px;color:var(--mid-brown);transition:all .2s}
@@ -1183,14 +1182,11 @@ body.guest .cover-gate-banner { display: flex; }
         </div>
         <div class="auth-err" id="loginPwErr">Password is required.</div>
       </div>
-      <div class="captcha-row">
-        <div class="captcha-img" id="loginCaptchaImg" onclick="refreshCaptcha('login')" title="Click to refresh">
-          <div id="loginCaptchaCanvas" style="pointer-events:none"></div>
-        </div>
-        <input class="captcha-input" type="text" id="loginCaptchaVal" placeholder="Enter code" maxlength="8" autocomplete="off">
-        <button class="captcha-refresh" onclick="refreshCaptcha('login')" type="button" title="Refresh">↻</button>
+      <div class="captcha-row" id="loginCaptchaRow">
+        <div class="captcha-img" id="loginCaptchaCanvas"></div>
+        <button class="captcha-refresh" onclick="refreshCaptcha('login')" type="button">🔄</button>
+        <input class="auth-input" type="text" id="loginCaptchaVal" placeholder="Code">
       </div>
-      <div class="auth-err" id="loginCaptchaErr">Incorrect CAPTCHA.</div>
       <button class="auth-submit" id="loginSubmit" onclick="submitLogin()">Sign In</button>
       <div class="auth-divider">or</div>
       <button class="oauth-btn" onclick="oauthGoogle()">
@@ -1224,14 +1220,11 @@ body.guest .cover-gate-banner { display: flex; }
         <div class="pw-label" id="pwLabel">Enter a password</div>
         <div class="auth-err" id="regPwErr">Min 8 chars, uppercase, number & special character.</div>
       </div>
-      <div class="captcha-row">
-        <div class="captcha-img" id="regCaptchaImg" onclick="refreshCaptcha('reg')" title="Click to refresh">
-          <div id="regCaptchaCanvas" style="pointer-events:none"></div>
-        </div>
-        <input class="captcha-input" type="text" id="regCaptchaVal" placeholder="Enter code" maxlength="8" autocomplete="off">
-        <button class="captcha-refresh" onclick="refreshCaptcha('reg')" type="button" title="Refresh">↻</button>
+      <div class="captcha-row" id="regCaptchaRow">
+        <div class="captcha-img" id="regCaptchaCanvas"></div>
+        <button class="captcha-refresh" onclick="refreshCaptcha('reg')" type="button">🔄</button>
+        <input class="auth-input" type="text" id="regCaptchaVal" placeholder="Code">
       </div>
-      <div class="auth-err" id="regCaptchaErr">Incorrect CAPTCHA.</div>
       <button class="auth-submit" id="regSubmit" onclick="submitRegister()">Create Account</button>
       <div class="auth-divider">or</div>
       <button class="oauth-btn" onclick="oauthGoogle()">
@@ -1636,6 +1629,14 @@ const Validate = {
 const API_BASE = 'http://localhost:5000/api';
 async function apiFetch(url, opts = {}) {
   const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+  
+  // Auto-set Content-Type for JSON bodies
+  if(opts.body && !opts.headers) {
+    opts.headers = { 'Content-Type': 'application/json' };
+  } else if (opts.body && opts.headers && !opts.headers['Content-Type']) {
+    opts.headers['Content-Type'] = 'application/json';
+  }
+
   let res = await fetch(fullUrl, { credentials: 'include', ...opts });
   if (res.status === 401 && !url.includes('/auth/refresh')) {
     const refreshRes = await fetch(`${API_BASE}/auth/refresh`, { method: 'POST', credentials: 'include' });
@@ -2335,7 +2336,7 @@ function generateCaptcha(){
 
 async function refreshCaptcha(type){
   try {
-    const res = await fetch(API_BASE + '/auth/captcha');
+    const res = await fetch(API_BASE + '/auth/captcha', { credentials: 'include' });
     const svg = await res.text();
     if(type==='login'){
       document.getElementById('loginCaptchaCanvas').innerHTML=svg;
@@ -2374,7 +2375,99 @@ function showErr(id,show){
   if(el){el.classList.toggle('show',show);const inp=el.previousElementSibling||el.closest('.auth-input-wrap')?.querySelector('.auth-input');if(inp)inp.classList.toggle('error',show);}
 }
 
-// Auth functions moved to patch section below
+// ── Auth Logic ────────────────────────────────────────────────────
+function isLoggedIn(){return !!currentUser;}
+function requireLogin(action){if(isLoggedIn())return true;showToast(`Please sign in to ${action}`);openAuth('login');return false;}
+
+async function submitLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const captcha=document.getElementById('loginCaptchaVal').value.trim();
+  
+  showErr('loginEmailErr', !Validate.email(email));
+  showErr('loginPwErr', !password);
+  showErr('loginCaptchaErr', !captcha);
+  if(!Validate.email(email) || !password || !captcha) return;
+
+  if(!ClientRateLimit.check('login', 5)) { showToast('Too many attempts. Please wait 1 min.'); return; }
+
+  const btn=document.getElementById('loginSubmit');
+  btn.disabled=true; btn.textContent='Signing in...';
+
+  try {
+    const res = await apiFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, captcha })
+    });
+    if(res.success){
+      setUser(res.user);
+      handleRememberMe(res.user);
+      showToast(`Welcome back, ${res.user.name}! 👋`);
+      closeAuth();
+      if(res.user.role==='admin') goPage('admin');
+    }
+  } catch(e) {
+    showToast(e.message, 'error');
+    refreshCaptcha('login');
+  } finally {
+    btn.disabled=false; btn.textContent='Sign In';
+  }
+}
+
+async function submitRegister(){
+  const name=document.getElementById('regName').value.trim();
+  const email=document.getElementById('regEmail').value.trim();
+  const password=document.getElementById('regPassword').value;
+  const captcha=document.getElementById('regCaptchaVal').value.trim();
+
+  showErr('regNameErr', !Validate.name(name));
+  showErr('regEmailErr', !Validate.email(email));
+  showErr('regPwErr', !Validate.password(password));
+  showErr('regCaptchaErr', !captcha);
+  if(!Validate.name(name) || !Validate.email(email) || !Validate.password(password) || !captcha) return;
+
+  const btn=document.getElementById('regSubmit');
+  btn.disabled=true; btn.textContent='Creating account...';
+
+  try {
+    const res = await apiFetch('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password, captcha })
+    });
+    if(res.success){
+      setUser(res.user);
+      showToast('Account created! Welcome to Future Store.');
+      closeAuth();
+    }
+  } catch(e) {
+    showToast(e.message, 'error');
+    refreshCaptcha('reg');
+  } finally {
+    btn.disabled=false; btn.textContent='Create Account';
+  }
+}
+
+function refreshCaptchaIfNeeded(){
+  if(document.getElementById('authModal').classList.contains('open')){
+    refreshCaptcha('login'); refreshCaptcha('reg');
+  }
+}
+
+// ── Admin Utilities ───────────────────────────────────────────────
+function renderSecurityLogs(){
+  const el=document.getElementById('securityLogsTable'); if(!el)return;
+  const filter=document.getElementById('logFilter')?.value || 'all';
+  const logs=SecurityLog.get().filter(l=>filter==='all'||l.type===filter);
+  if(!logs.length){el.innerHTML='<p style="padding:20px;text-align:center;color:var(--mid-brown)">No security logs found.</p>';return;}
+  el.innerHTML=`<table class="admin-table"><thead><tr><th>Time</th><th>Event</th><th>User</th><th>Message</th></tr></thead><tbody>
+    ${logs.map(l=>`<tr>
+      <td style="font-size:11px">${new Date(l.ts).toLocaleString()}</td>
+      <td><span class="status-badge" style="background:var(--warm-white);color:var(--mid-brown)">${l.type}</span></td>
+      <td style="font-size:12px">${l.user}</td>
+      <td style="font-size:12px">${sanitize(l.detail)}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+function clearSecurityLogs(){ if(confirm('Clear all security logs?')){localStorage.removeItem('fs_sec_log');renderSecurityLogs();} }
 
 function oauthGoogle(){
   showToast('Google OAuth requires backend setup. See README.');

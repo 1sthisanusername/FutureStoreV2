@@ -50,7 +50,17 @@ app.use(helmet({
 
 // ── CORS ──────────────────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // In development or if it's a local origin, always allow
+    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    // Otherwise check against production URL
+    if (origin === process.env.FRONTEND_URL) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization','X-Requested-With'],
