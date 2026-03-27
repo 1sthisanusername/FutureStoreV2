@@ -1320,6 +1320,7 @@ body.guest .cover-gate-banner { display: flex; }
         <button class="nav-jump-btn" onclick="adminTab('coupons')" id="atab-coupons">🏷️ Coupons</button>
         <button class="nav-jump-btn" onclick="adminTab('subs')" id="atab-subs">📧 Subs</button>
         <button class="nav-jump-btn" onclick="adminTab('logs')" id="atab-logs">🛡️ Logs</button>
+        <button class="nav-jump-btn" onclick="adminTab('support')" id="atab-support">🎫 Support</button>
         <button class="nav-jump-btn" onclick="adminTab('stats')" id="atab-stats">📊 Stats</button>
       </div>
     </div>
@@ -1368,6 +1369,7 @@ body.guest .cover-gate-banner { display: flex; }
       </div>
       <div id="securityLogsTable"></div>
     </div>
+    <div id="admin-support" class="admin-tab-content" style="display:none"><div id="adminSupportTable"></div></div>
     <div id="admin-stats" class="admin-tab-content" style="display:none"><div id="adminStatsGrid"></div></div>
   </div>
 </div>
@@ -3002,55 +3004,89 @@ function showEditProfile(user){
   document.getElementById('editName').value=user.name||'';
   document.getElementById('editEmail').value=user.email||'';
 }
-function saveProfile(){
+async function saveProfile(){
   const name=document.getElementById('editName').value.trim();
   const pw=document.getElementById('editPassword').value;
   if(!name||name.length<2){showToast('Name must be at least 2 characters');return;}
-  if(pw&&(pw.length<8||!/[A-Z]/.test(pw)||!/[0-9]/.test(pw))){
-    showToast('Password: min 8 chars, 1 uppercase, 1 number');return;
-  }
-  const accounts=JSON.parse(localStorage.getItem('fs_accounts')||'{}');
-  const email=currentUser.email;
-  if(accounts[email]){
-    accounts[email].name=name;
-    if(pw)accounts[email].password=btoa(pw);
-    localStorage.setItem('fs_accounts',JSON.stringify(accounts));
-    currentUser.name=name;
-    localStorage.setItem('fs_user',JSON.stringify(currentUser));
-    setUser(currentUser);
-    showToast('Profile updated!');
+  
+  const btn=document.querySelector('#editProfileSection .auth-submit');
+  if(btn) { btn.disabled=true; btn.textContent='Saving...'; }
+
+  try {
+    const res = await apiFetch('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ name, email: currentUser.email })
+    });
+    if(res.success){
+      currentUser.name=res.user.name;
+      setUser(currentUser);
+      showToast('Profile updated!');
+      if(pw){
+        // Special case for password change
+        const cpw=prompt('Enter current password to confirm change:');
+        if(cpw){
+          const pwr=await apiFetch('/auth/change-password',{method:'PUT',body:JSON.stringify({currentPassword:cpw,newPassword:pw})});
+          if(pwr.success){showToast('Password updated! Please log in again.');logoutUser();}
+          else{showToast(pwr.message||'Password update failed','error');}
+        }
+      }
+    } else {
+      showToast(res.message || 'Update failed', 'error');
+    }
+  } catch(err) {
+    showToast('Failed to update profile.', 'error');
+  } finally {
+    if(btn) { btn.disabled=false; btn.textContent='Save Changes'; }
   }
 }
-function confirmDeleteAccount(){
-  if(!confirm('Are you sure you want to delete your account? This cannot be undone.'))return;
-  const accounts=JSON.parse(localStorage.getItem('fs_accounts')||'{}');
-  delete accounts[currentUser.email];
-  localStorage.setItem('fs_accounts',JSON.stringify(accounts));
-  localStorage.removeItem('fs_addr_'+currentUser.email);
-  localStorage.removeItem('fs_wish_'+currentUser.email);
-  sessionStorage.removeItem('fs_cart_'+currentUser.email);
-  logoutUser();
-  showToast('Account deleted.');
+async function confirmDeleteAccount(){
+  if(!confirm('Are you sure you want to deactivate your account? Your data will be hidden but can be restored by support.'))return;
+  try {
+    const res = await apiFetch('/auth/me', { method: 'DELETE' });
+    if(res.success){
+      showToast('Account deactivated.');
+      logoutUser();
+    } else {
+      showToast(res.message || 'Failed to deactivate account', 'error');
+    }
+  } catch(err) {
+    showToast('Server error.', 'error');
+  }
 }
 
 // ================================================================
 // CONTACT FORM
 // ================================================================
-function submitContact(){
+async function submitContact(){
   const name=document.getElementById('contactName').value.trim();
   const email=document.getElementById('contactEmail').value.trim();
   const subject=document.getElementById('contactSubject').value;
   const msg=document.getElementById('contactMessage').value.trim();
   if(!name||!email||!email.includes('@')||!subject||!msg){showToast('Please fill all required fields');return;}
-  // Save to localStorage for demo
-  const tickets=JSON.parse(localStorage.getItem('fs_support')||'[]');
-  tickets.push({id:'TKT-'+Date.now().toString(36).toUpperCase(),name,email,subject,msg,date:new Date().toISOString(),status:'open'});
-  localStorage.setItem('fs_support',JSON.stringify(tickets));
-  document.getElementById('contactName').value='';
-  document.getElementById('contactEmail').value='';
-  document.getElementById('contactSubject').value='';
-  document.getElementById('contactMessage').value='';
-  showToast('Message sent! We will reply within 24 hours.');
+  
+  const btn=document.querySelector('#page-contact .auth-submit');
+  if(btn) { btn.disabled=true; btn.textContent='Sending...'; }
+
+  try {
+    const res = await apiFetch('/support', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, subject, message: msg })
+    });
+    if(res.success){
+      document.getElementById('contactName').value='';
+      document.getElementById('contactEmail').value='';
+      document.getElementById('contactSubject').value='';
+      document.getElementById('contactMessage').value='';
+      showToast('Message sent! Our support team will respond shortly.');
+      SecurityLog.add('support_ticket', email, 'info');
+    } else {
+      showToast(res.message || 'Failed to send message', 'error');
+    }
+  } catch(err) {
+    showToast('Server error. Please try again later.', 'error');
+  } finally {
+    if(btn) { btn.disabled=false; btn.textContent='Send Message'; }
+  }
 }
 
 // ================================================================
@@ -3150,7 +3186,7 @@ function goPageAdmin(){
 }
 function adminTab(tab){
   _adminTab=tab;
-  ['orders','books','users','coupons','subs','logs','stats'].forEach(t=>{
+  ['orders','books','users','coupons','subs','logs','support','stats'].forEach(t=>{
     const btn=document.getElementById('atab-'+t);if(!btn)return;
     const a=t===tab;btn.style.background=a?'var(--cta)':'';btn.style.color=a?'white':'';btn.style.borderColor=a?'var(--cta)':'';
   });
@@ -3162,6 +3198,7 @@ function adminTab(tab){
   if(tab==='coupons')renderAdminCoupons();
   if(tab==='subs')renderAdminSubscribers();
   if(tab==='logs')renderSecurityLogs();
+  if(tab==='support')renderAdminSupport();
   if(tab==='stats')renderAdminStats();
 }
 // getAllOrders removed - using API
@@ -3270,6 +3307,21 @@ async function renderAdminSubscribers(){
     const subs = res.data;
     el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Email</th><th>Source</th><th>Joined</th></tr></thead><tbody>
     ${subs.map(s=>`<tr><td style="font-weight:500">${sanitize(s.email)}</td><td>${s.source}</td><td style="font-size:12px">${new Date(s.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table></div>`;
+  } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
+}
+async function renderAdminSupport(){
+  const el=document.getElementById('adminSupportTable');if(!el)return;
+  try {
+    const res = await apiFetch('/support/tickets'); 
+    const tickets = res.data;
+    if(!tickets.length){el.innerHTML='<p style="text-align:center;padding:40px;color:var(--mid-brown)">No support tickets found.</p>';return;}
+    el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Customer</th><th>Subject</th><th>Message</th><th>Date</th></tr></thead><tbody>
+    ${tickets.map(t=>`<tr>
+      <td><div style="font-weight:500;font-size:13px">${sanitize(t.name)}</div><div style="font-size:11px;color:var(--mid-brown)">${sanitize(t.email)}</div></td>
+      <td style="font-weight:600">${sanitize(t.subject)}</td>
+      <td style="font-size:12px;max-width:300px;white-space:normal">${sanitize(t.message)}</td>
+      <td style="font-size:12px;white-space:nowrap">${new Date(t.created_at).toLocaleDateString()}</td>
+    </tr>`).join('')}</tbody></table></div>`;
   } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
 }
 function openAddBookModal(){document.getElementById('addBookModal').classList.add('open');}
@@ -3741,8 +3793,6 @@ function goPage(page){
 // ================================================================
 // EMAIL SUBSCRIBE — localStorage persist
 // ================================================================
-function getSubscribers(){try{return new Set(JSON.parse(localStorage.getItem('fs_subscribers')||'[]'));}catch(e){return new Set();}}
-function saveSubscriber(email){const s=getSubscribers();s.add(email);try{localStorage.setItem('fs_subscribers',JSON.stringify([...s]));}catch(e){}}
 async function submitEmailCapture(){
   const inp=document.getElementById('emailCaptureInput');if(!inp)return;
   const email=inp.value.trim().toLowerCase();
@@ -3757,8 +3807,8 @@ async function submitEmailCapture(){
     });
     if(res.success){
       showToast(res.message || 'Subscribed! Check your inbox.');
-      saveSubscriber(email);
       inp.value='';
+      SecurityLog.add('newsletter_subscription', email, 'info');
     } else {
       showToast(res.message || 'Subscription failed', 'error');
     }

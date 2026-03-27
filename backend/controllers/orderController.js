@@ -5,14 +5,6 @@ const { sendOrderConfirmation, sendShippingUpdate } = require('../services/email
 
 const genOrderNumber = () => 'FS-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,5).toUpperCase();
 
-// Helper: run a query on a pg client with ? → $n conversion
-const cq = (conn, text, params=[]) => {
-  if (text.includes('?')) {
-    let i=0; text = text.replace(/\?/g, ()=>`$${++i}`);
-  }
-  return conn.query(text, params);
-};
-
 // ── PLACE ORDER ──────────────────────────────────────────────────
 const placeOrder = async (req, res) => {
   const { items, address_id, shipping, payment_gateway, payment_id, coupon_code } = req.body;
@@ -24,7 +16,7 @@ const placeOrder = async (req, res) => {
 
     let subtotal=0; const enriched=[];
     for (const item of items) {
-      const r = await cq(conn, 'SELECT id,price,stock,title FROM books WHERE id=? AND is_active=true', [item.id]);
+      const r = await conn.query('SELECT id,price,stock,title FROM books WHERE id=$1 AND is_active=true', [item.id]);
       const book = r.rows[0];
       if (!book) throw new Error(`Book #${item.id} not found.`);
       if (book.stock < item.qty) throw new Error(`"${book.title}" only has ${book.stock} in stock.`);
@@ -34,7 +26,7 @@ const placeOrder = async (req, res) => {
 
     let discount=0, couponRecord=null;
     if (coupon_code) {
-      const cr = await cq(conn, `SELECT * FROM coupons WHERE code=? AND is_active=true AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR uses < max_uses)`, [coupon_code.toUpperCase()]);
+      const cr = await conn.query(`SELECT * FROM coupons WHERE code=$1 AND is_active=true AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR uses < max_uses)`, [coupon_code.toUpperCase()]);
       const coupon = cr.rows[0];
       if (!coupon) throw new Error('Invalid or expired coupon code.');
       if (subtotal < coupon.min_order) throw new Error(`Minimum order $${coupon.min_order} required.`);
@@ -49,14 +41,14 @@ const placeOrder = async (req, res) => {
 
     let shippingDetails = shipping || {};
     if (address_id) {
-      const ar = await cq(conn, 'SELECT * FROM addresses WHERE id=? AND user_id=?', [address_id, req.user.id]);
+      const ar = await conn.query('SELECT * FROM addresses WHERE id=$1 AND user_id=$2', [address_id, req.user.id]);
       const addr = ar.rows[0];
       if (addr) shippingDetails = { name: addr.name, email: req.user.email, phone: addr.phone, address: `${addr.line1}, ${addr.line2||''}, ${addr.city}, ${addr.state} ${addr.pincode}` };
     }
 
-    const ordR = await cq(conn,
+    const ordR = await conn.query(
       `INSERT INTO orders (order_number,user_id,status,subtotal,shipping_fee,total,discount,coupon_code,payment_gateway,payment_id,shipping_name,shipping_email,shipping_phone,shipping_address)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [orderNumber, req.user.id, 'confirmed', subtotal.toFixed(2), shippingFee.toFixed(2), total,
        discount.toFixed(2), couponRecord?.code||null, payment_gateway||null, payment_id||null,
        shippingDetails.name||req.user.name, shippingDetails.email||req.user.email,
@@ -65,20 +57,20 @@ const placeOrder = async (req, res) => {
     const orderId = ordR.rows[0].id;
 
     for (const b of enriched) {
-      await cq(conn, 'INSERT INTO order_items (order_id,book_id,qty,unit_price) VALUES (?,?,?,?)', [orderId, b.id, b.qty, b.price]);
-      await cq(conn, 'UPDATE books SET stock=stock-? WHERE id=?', [b.qty, b.id]);
+      await conn.query('INSERT INTO order_items (order_id,book_id,qty,unit_price) VALUES ($1,$2,$3,$4)', [orderId, b.id, b.qty, b.price]);
+      await conn.query('UPDATE books SET stock=stock-$1 WHERE id=$2', [b.qty, b.id]);
     }
-    if (couponRecord) await cq(conn, 'UPDATE coupons SET uses=uses+1 WHERE id=?', [couponRecord.id]);
-    await cq(conn, 'INSERT INTO order_status_history (order_id,status,note) VALUES (?,?,?)', [orderId, 'confirmed', 'Order placed']);
+    if (couponRecord) await conn.query('UPDATE coupons SET uses=uses+1 WHERE id=$1', [couponRecord.id]);
+    await conn.query('INSERT INTO order_status_history (order_id,status,note) VALUES ($1,$2,$3)', [orderId, 'confirmed', 'Order placed']);
 
     await conn.query('COMMIT'); conn.release();
 
-    const fullOrder = await pool.query('SELECT * FROM orders WHERE id=?', [orderId]);
+    const fullOrder = await pool.query('SELECT * FROM orders WHERE id=$1', [orderId]);
     sendOrderConfirmation(fullOrder.rows[0], req.user).catch(()=>{});
 
     res.status(201).json({ success:true, message:'Order placed!', data: { orderId, orderNumber, total, discount } });
   } catch (err) {
-    await conn.query('ROLLBACK'); conn.release();
+    if (conn) { await conn.query('ROLLBACK'); conn.release(); }
     res.status(400).json({ success:false, message: err.message });
   }
 };
@@ -94,7 +86,7 @@ const myOrders = async (req, res) => {
       FROM orders o
       JOIN order_items oi ON oi.order_id = o.id
       JOIN books b ON b.id = oi.book_id
-      WHERE o.user_id = ?
+      WHERE o.user_id = $1
       ORDER BY o.created_at DESC, o.id DESC`,
       [req.user.id]
     );
@@ -146,7 +138,7 @@ const getOrder = async (req, res) => {
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN books b ON b.id = oi.book_id
       LEFT JOIN order_status_history h ON h.order_id = o.id
-      WHERE o.id = ? AND o.user_id = ?
+      WHERE o.id = $1 AND o.user_id = $2
       ORDER BY h.created_at ASC`,
       [req.params.id, req.user.id]
     );
@@ -205,18 +197,18 @@ const cancelOrder = async (req, res) => {
   const conn = await pool.connect();
   try {
     await conn.query('BEGIN');
-    const r = await cq(conn, 'SELECT * FROM orders WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
+    const r = await conn.query('SELECT * FROM orders WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id]);
     const order = r.rows[0];
     if (!order) throw new Error('Order not found.');
     if (!['pending','confirmed'].includes(order.status)) throw new Error('Only pending/confirmed orders can be cancelled.');
-    await cq(conn, "UPDATE orders SET status='cancelled' WHERE id=?", [order.id]);
-    const { rows: items } = await cq(conn, 'SELECT * FROM order_items WHERE order_id=?', [order.id]);
-    for (const item of items) await cq(conn, 'UPDATE books SET stock=stock+? WHERE id=?', [item.qty, item.book_id]);
-    await cq(conn, 'INSERT INTO order_status_history (order_id,status,note) VALUES (?,?,?)', [order.id, 'cancelled', req.body.reason||'Customer request']);
+    await conn.query("UPDATE orders SET status='cancelled' WHERE id=$1", [order.id]);
+    const { rows: items } = await conn.query('SELECT * FROM order_items WHERE order_id=$1', [order.id]);
+    for (const item of items) await conn.query('UPDATE books SET stock=stock+$1 WHERE id=$2', [item.qty, item.book_id]);
+    await conn.query('INSERT INTO order_status_history (order_id,status,note) VALUES ($1,$2,$3)', [order.id, 'cancelled', req.body.reason||'Customer request']);
     await conn.query('COMMIT'); conn.release();
     res.json({ success:true, message:'Order cancelled.' });
   } catch (err) {
-    await conn.query('ROLLBACK'); conn.release();
+    if (conn) { await conn.query('ROLLBACK'); conn.release(); }
     res.status(400).json({ success:false, message:err.message });
   }
 };
@@ -224,9 +216,9 @@ const cancelOrder = async (req, res) => {
 // ── INVOICE ──────────────────────────────────────────────────────
 const getInvoice = async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM orders WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id]);
     if (!rows.length) return res.status(404).json({ success:false, message:'Order not found.' });
-    const { rows: items } = await pool.query(`SELECT oi.*,b.title,b.author FROM order_items oi JOIN books b ON b.id=oi.book_id WHERE oi.order_id=?`, [rows[0].id]);
+    const { rows: items } = await pool.query(`SELECT oi.*,b.title,b.author FROM order_items oi JOIN books b ON b.id=oi.book_id WHERE oi.order_id=$1`, [rows[0].id]);
     const html = generateInvoiceHTML(rows[0], items, req.user);
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
@@ -240,7 +232,7 @@ const getInvoice = async (req, res) => {
 const validateCoupon = async (req, res) => {
   try {
     const { code, subtotal } = req.body;
-    const { rows } = await pool.query(`SELECT * FROM coupons WHERE code=? AND is_active=true AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR uses < max_uses)`, [code?.toUpperCase()]);
+    const { rows } = await pool.query(`SELECT * FROM coupons WHERE code=$1 AND is_active=true AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR uses < max_uses)`, [code?.toUpperCase()]);
     if (!rows.length) return res.status(404).json({ success:false, message:'Invalid or expired coupon.' });
     const coupon = rows[0];
     if (subtotal < coupon.min_order) return res.status(400).json({ success:false, message:`Minimum order $${coupon.min_order} required.` });

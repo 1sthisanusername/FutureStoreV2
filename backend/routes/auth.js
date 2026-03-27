@@ -55,6 +55,16 @@ router.post('/refresh', ctrl.refresh);
 router.post('/logout', authenticate, ctrl.logout);
 router.get('/me',      authenticate, ctrl.me);
 
+router.put('/me',
+  authenticate,
+  [
+    body('name').optional().trim().isLength({ min: 2, max: 120 }),
+    body('email').optional().trim().isEmail().normalizeEmail(),
+  ],
+  validate, ctrl.updateProfile
+);
+router.delete('/me', authenticate, ctrl.deleteAccount);
+
 // ── CHANGE PASSWORD ───────────────────────────────────────────────
 router.put('/change-password',
   authenticate,

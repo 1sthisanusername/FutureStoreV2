@@ -276,19 +276,38 @@ const me = async (req, res) => {
   }
 };
 
-const changePassword = async (req, res) => {
+const updateProfile = async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
-    const { rows: rows } = await pool.query('SELECT password_hash FROM users WHERE id=$1', [req.user.id]);
-    const match = await bcrypt.compare(currentPassword, rows[0].password_hash);
-    if (!match) return res.status(400).json({ success: false, message: 'Current password incorrect.' });
-    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-    await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, req.user.id]);
-    await revokeAllTokens(req.user.id);
-    res.json({ success: true, message: 'Password updated. Please log in again.' });
+    const { name, email } = req.body;
+    if (!name || !email) return res.status(400).json({ success: false, message: 'Name and email required.' });
+
+    // Check if email is already taken by another user
+    const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email.toLowerCase().trim(), req.user.id]);
+    if (existing.length) return res.status(409).json({ success: false, message: 'Email already in use.' });
+
+    const { rows: result } = await pool.query(
+      'UPDATE users SET name = $1, email = $2 WHERE id = $3 RETURNING id, uuid, name, email, role',
+      [name.trim(), email.toLowerCase().trim(), req.user.id]
+    );
+
+    res.json({ success: true, message: 'Profile updated.', user: result[0] });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to change password.' });
+    console.error('Update profile error:', err);
+    res.status(500).json({ success: false, message: 'Failed to update profile.' });
+  }
+};
+
+const deleteAccount = async (req, res) => {
+  try {
+    // Soft delete or hard delete? Let's do soft delete by setting is_active = false
+    await pool.query('UPDATE users SET is_active = false WHERE id = $1', [req.user.id]);
+    await revokeAllTokens(req.user.id);
+    res.clearCookie('token');
+    res.clearCookie('refreshToken');
+    res.json({ success: true, message: 'Account deactivated.' });
+  } catch (err) {
+    console.error('Delete account error:', err);
+    res.status(500).json({ success: false, message: 'Failed to delete account.' });
   }
 };
 
@@ -296,5 +315,5 @@ module.exports = {
   getCaptcha, register, login, refresh, logout,
   sendPhoneOTP, verifyPhoneOTP, googleOAuthCallback,
   forgotPassword, resetPassword, verifyEmail,
-  me, changePassword,
+  me, changePassword, updateProfile, deleteAccount
 };
