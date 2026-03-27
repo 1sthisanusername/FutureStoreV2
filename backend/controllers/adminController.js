@@ -172,21 +172,27 @@ const adminGetOrders = async (req, res) => {
 };
 
 const updateOrderStatus = async (req, res) => {
+  const conn = await pool.connect();
   try {
     const { status, note, tracking_id } = req.body;
     const valid = ['pending','confirmed','shipped','delivered','cancelled'];
     if (!valid.includes(status)) return res.status(400).json({ success:false, message:'Invalid status.' });
+
+    await conn.query('BEGIN');
     const updates=['status=$1']; const vals=[status];
     if (tracking_id) { updates.push(`tracking_id=$${vals.length+1}`); vals.push(tracking_id); }
     vals.push(req.params.id);
-    await pool.query(`UPDATE orders SET ${updates.join(',')} WHERE id=$${vals.length}`, vals);
-    await pool.query('INSERT INTO order_status_history (order_id,status,note,changed_by) VALUES ($1,$2,$3,$4)', [req.params.id, status, note||null, req.user.id]);
+    await conn.query(`UPDATE orders SET ${updates.join(',')} WHERE id=$${vals.length}`, vals);
+    await conn.query('INSERT INTO order_status_history (order_id,status,note,changed_by) VALUES ($1,$2,$3,$4)', [req.params.id, status, note||null, req.user.id]);
+    
     if (status==='shipped') {
-      const { rows: [order] } = await pool.query('SELECT o.*,u.name,u.email FROM orders o JOIN users u ON u.id=o.user_id WHERE o.id=$1', [req.params.id]);
+      const { rows: [order] } = await conn.query('SELECT o.*,u.name,u.email FROM orders o JOIN users u ON u.id=o.user_id WHERE o.id=$1', [req.params.id]);
       if (order) sendShippingUpdate({ ...order, tracking_id }, { name:order.name, email:order.email }).catch(()=>{});
     }
+    await conn.query('COMMIT'); conn.release();
     res.json({ success:true, message:`Order status → "${status}".` });
   } catch (err) {
+    if (conn) { await conn.query('ROLLBACK'); conn.release(); }
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to update order status.' });
   }
@@ -245,8 +251,13 @@ const toggleUserActive = async (req, res) => {
   try {
     const { rows: [user] } = await pool.query('SELECT id,is_active FROM users WHERE id=$1', [req.params.id]);
     if (!user) return res.status(404).json({ success:false, message:'User not found.' });
-    await pool.query('UPDATE users SET is_active=$1 WHERE id=$2', [!user.is_active, req.params.id]);
-    res.json({ success:true, message:`User ${!user.is_active?'enabled':'disabled'}.` });
+    const newState = !user.is_active;
+    await pool.query('UPDATE users SET is_active=$1 WHERE id=$2', [newState, req.params.id]);
+    if (!newState) {
+      const { revokeAllTokens } = require('../utils/jwt');
+      await revokeAllTokens(req.params.id).catch(()=>{});
+    }
+    res.json({ success:true, message: `User ${newState?'enabled':'disabled'}.` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to toggle user status.' });

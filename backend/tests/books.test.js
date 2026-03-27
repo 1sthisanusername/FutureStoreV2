@@ -6,8 +6,19 @@ jest.mock('../config/db', () => ({ query: jest.fn(), connect: jest.fn() }));
 jest.mock('../services/searchService', () => ({
   indexBook: jest.fn(), removeBook: jest.fn(), search: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../middleware/auth', () => ({
+  authenticate: (req, res, next) => {
+    req.user = { id: 1, role: 'customer' };
+    next();
+  },
+  adminOnly: (req, res, next) => next(),
+}));
 
 const pool = require('../config/db');
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 describe('Books Endpoints', () => {
 
@@ -90,6 +101,33 @@ describe('Books Endpoints', () => {
       const res = await request(app).get('/api/books/suggest?q=a');
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(0);
+    });
+  });
+
+  describe('POST /api/books/:id/reviews', () => {
+    it('successfully adds a review (transactional)', async () => {
+      const mockClient = {
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [] }) // BEGIN
+          .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // verified buyer check
+          .mockResolvedValueOnce({ rows: [] }) // INSERT review
+          .mockResolvedValueOnce({ rows: [] }) // UPDATE book stats
+          .mockResolvedValueOnce({ rows: [] }), // COMMIT
+        release: jest.fn()
+      };
+      pool.connect.mockResolvedValueOnce(mockClient);
+
+      const res = await request(app).post('/api/books/1/reviews')
+        .send({ rating: 5, comment: 'Excellent!' });
+      expect(res.status).toBe(201);
+      expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+    });
+
+    it('rejects invalid rating', async () => {
+      const res = await request(app).post('/api/books/1/reviews')
+        .send({ rating: 6, comment: 'Too high' });
+      expect([400, 422]).toContain(res.status);
     });
   });
 });

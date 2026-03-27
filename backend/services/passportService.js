@@ -20,22 +20,22 @@ try {
           const email = profile.emails?.[0]?.value;
           if (!email) return done(new Error('No email from Google'));
 
-          const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+          const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
           let user = rows[0];
 
           if (!user) {
             const uuid = uuidv4();
-            const [ins] = await pool.query(
+            const { rows: [ins] } = await pool.query(
               `INSERT INTO users (uuid, name, email, password_hash, role, email_verified)
-               VALUES (?, ?, ?, 'GOOGLE_OAUTH', 'customer', 1)`,
+               VALUES ($1, $2, $3, 'GOOGLE_OAUTH', 'customer', true) RETURNING id`,
               [uuid, profile.displayName, email]
             );
-            user = { id: ins.insertId, uuid, name: profile.displayName, email, role: 'customer' };
+            user = { id: ins.id, uuid, name: profile.displayName, email, role: 'customer' };
           } else if (!user.is_active) {
             return done(null, false, { message: 'Account disabled.' });
           }
 
-          await pool.query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
+          await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
           return done(null, user);
         } catch (err) {
           return done(err);
@@ -46,7 +46,7 @@ try {
     passport.serializeUser((user, done) => done(null, user.id));
     passport.deserializeUser(async (id, done) => {
       try {
-        const [rows] = await pool.query('SELECT id,uuid,name,email,role FROM users WHERE id=?', [id]);
+        const { rows } = await pool.query('SELECT id,uuid,name,email,role FROM users WHERE id=$1', [id]);
         done(null, rows[0] || null);
       } catch (err) {
         done(err);

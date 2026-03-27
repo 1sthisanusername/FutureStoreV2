@@ -93,21 +93,28 @@ describe('Admin Endpoints', () => {
 
   describe('PATCH /api/admin/orders/:id/status', () => {
     it('rejects invalid status value', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
       const res = await request(app).patch('/api/admin/orders/1/status')
         .send({ status: 'teleported' });
-      // Validator throws 422, controller fallback throws 400
       expect([400, 422]).toContain(res.status);
     });
 
     it('updates to shipped and triggers email', async () => {
-      pool.query
-        .mockResolvedValueOnce({ rows: [] })   // UPDATE orders
-        .mockResolvedValueOnce({ rows: [] })   // INSERT history
-        .mockResolvedValueOnce({ rows: [{ id: 1, order_number: 'FS-001', name: 'Alice', email: 'alice@test.com' }] }); // fetch for email
+      const mockClient = {
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [] }) // BEGIN
+          .mockResolvedValueOnce({ rows: [] }) // UPDATE orders
+          .mockResolvedValueOnce({ rows: [] }) // INSERT history
+          .mockResolvedValueOnce({ rows: [{ id: 1, name: 'Alice', email: 'alice@test.com' }] }) // fetch for email
+          .mockResolvedValueOnce({ rows: [] }), // COMMIT
+        release: jest.fn()
+      };
+      pool.connect.mockResolvedValueOnce(mockClient);
+
       const res = await request(app).patch('/api/admin/orders/1/status')
         .send({ status: 'shipped', tracking_id: 'TRACK123' });
       expect(res.status).toBe(200);
+      expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
     });
   });
 });

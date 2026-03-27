@@ -266,7 +266,7 @@ const verifyEmail = async (req, res) => {
 // ── ME / CHANGE PASSWORD ─────────────────────────────────────────
 const me = async (req, res) => {
   try {
-    const { rows: rows } = await pool.query(
+    const { rows } = await pool.query(
       'SELECT id, uuid, name, email, role, created_at, last_login FROM users WHERE id = $1', [req.user.id]
     );
     res.json({ success: true, data: rows[0] });
@@ -294,6 +294,25 @@ const updateProfile = async (req, res) => {
   } catch (err) {
     console.error('Update profile error:', err);
     res.status(500).json({ success: false, message: 'Failed to update profile.' });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const { rows: [user] } = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    
+    const match = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!match) return res.status(401).json({ success: false, message: 'Incorrect current password.' });
+
+    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
+    await revokeAllTokens(req.user.id); // Security: force logout on other devices
+
+    res.json({ success: true, message: 'Password changed successfully. Please log in again.' });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ success: false, message: 'Failed to change password.' });
   }
 };
 

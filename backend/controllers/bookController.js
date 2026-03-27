@@ -80,23 +80,40 @@ const addReview = async (req, res) => {
   const { rating, comment } = req.body;
   const bookId = req.params.id;
 
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5.' });
+  }
+
+  const conn = await pool.connect();
   try {
+    await conn.query('BEGIN');
+    
     // Verified buyer check
-    const { rows: orders } = await pool.query(
+    const { rows: orders } = await conn.query(
       `SELECT o.id FROM orders o JOIN order_items oi ON oi.order_id=o.id
        WHERE o.user_id=$1 AND oi.book_id=$2 AND o.status IN ('delivered','confirmed')`,
       [req.user.id, bookId]
     );
-    if (!orders.length)
+    if (!orders.length) {
+      await conn.query('ROLLBACK'); conn.release();
       return res.status(403).json({ success:false, message:'Only verified buyers can review this book.' });
+    }
 
-    await pool.query('INSERT INTO reviews (book_id,user_id,rating,comment) VALUES ($1,$2,$3,$4)', [bookId, req.user.id, rating, comment||null]);
-    await pool.query(
-      `UPDATE books SET rating=(SELECT AVG(rating) FROM reviews WHERE book_id=$1), reviews_count=(SELECT COUNT(*) FROM reviews WHERE book_id=$2) WHERE id=$3`,
+    await conn.query('INSERT INTO reviews (book_id,user_id,rating,comment) VALUES ($1,$2,$3,$4)', [bookId, req.user.id, rating, comment||null]);
+    
+    // Atomic update of book stats
+    await conn.query(
+      `UPDATE books SET 
+        rating = (SELECT COALESCE(AVG(rating),0) FROM reviews WHERE book_id=$1), 
+        reviews_count = (SELECT COUNT(*) FROM reviews WHERE book_id=$2) 
+       WHERE id=$3`,
       [bookId, bookId, bookId]
     );
+
+    await conn.query('COMMIT'); conn.release();
     res.status(201).json({ success:true, message:'Review submitted!' });
   } catch (err) {
+    if (conn) { await conn.query('ROLLBACK'); conn.release(); }
     if (err.code === '23505') return res.status(409).json({ success:false, message:'You already reviewed this book.' });
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to add review.' });

@@ -36,7 +36,7 @@ const placeOrder = async (req, res) => {
     }
 
     const shippingFee = subtotal >= 35 ? 0 : 4.99;
-    const total = +(subtotal - discount + shippingFee).toFixed(2);
+    const total = Math.round((subtotal - discount + shippingFee) * 100) / 100;
     const orderNumber = genOrderNumber();
 
     let shippingDetails = shipping || {};
