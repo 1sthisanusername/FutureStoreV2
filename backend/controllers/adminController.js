@@ -26,7 +26,7 @@ const getDashboard = async (req, res) => {
       pool.query('SELECT COUNT(*) AS lowStock FROM books WHERE stock<=5 AND is_active=true'),
       pool.query("SELECT COUNT(*) AS pendingOrders FROM orders WHERE status='pending'"),
       pool.query(
-        "SELECT DATE(created_at) AS date, SUM(total) AS revenue, COUNT(*) AS orders FROM orders WHERE created_at >= NOW() - INTERVAL '7 days' AND status!='cancelled' GROUP BY DATE(created_at) ORDER BY date ASC"
+        "SELECT created_at::DATE AS date, SUM(total) AS revenue, COUNT(*) AS orders FROM orders WHERE created_at >= NOW() - INTERVAL '7 days' AND status!='cancelled' GROUP BY created_at::DATE ORDER BY date ASC"
       ),
       pool.query(
         'SELECT o.*,u.name AS customer_name FROM orders o JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT 8'

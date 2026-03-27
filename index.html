@@ -2042,31 +2042,7 @@ function toggleCart(){const o=document.getElementById('cartOverlay'),s=document.
 // CHECKOUT + PAYMENTS
 // ================================================================
 let selPay=null,ppLoaded=false;
-function openCheckout(){
-  toggleCart();
-  const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  let discount=0;
-  if(appliedCoupon){if(appliedCoupon.type==='percent')discount=sub*(appliedCoupon.value/100);else if(appliedCoupon.type==='flat')discount=Math.min(appliedCoupon.value,sub);}
-  const ship=appliedCoupon?.type==='shipping'?0:(sub-discount>=35?0:4.99);
-  const tot=Math.max(0,sub-discount)+ship;
-  document.getElementById('checkoutSummary').innerHTML=
-    cart.map(i=>`<div class="s-row"><span>${i.title} ×${i.qty}</span><span>$${(i.price*i.qty).toFixed(2)}</span></div>`).join('')+
-    (discount>0?`<div class="s-row" style="color:var(--green)"><span>Discount (${appliedCoupon.code})</span><span>-$${discount.toFixed(2)}</span></div>`:'')+
-    `<div class="s-row"><span>Shipping</span><span>${ship===0?'<span style="color:var(--green)">Free</span>':'$'+ship.toFixed(2)}</span></div>
-     <div class="s-total"><span>Total</span><span>$${tot.toFixed(2)}</span></div>`;
-  // Pre-fill from logged in user
-  if(currentUser){
-    document.getElementById('custName').value=currentUser.name||'';
-    document.getElementById('custEmail').value=currentUser.email||'';
-  }
-  document.getElementById('checkoutBg').classList.add('open');
-  document.getElementById('checkoutBox').classList.add('open');
-  selPay=null;
-  document.querySelectorAll('.pay-method').forEach(e=>e.classList.remove('sel'));
-  document.querySelectorAll('.pm-radio').forEach(e=>e.classList.remove('on'));
-  document.getElementById('paypal-section').style.display='none';
-  document.getElementById('razorpay-section').style.display='none';
-}
+// checkout logic moved to patch section
 function closeCheckout(){document.getElementById('checkoutBg').classList.remove('open');document.getElementById('checkoutBox').classList.remove('open');}
 function selPayment(m){
   selPay=m;
@@ -2378,16 +2354,19 @@ function generateCaptcha(){
   return{text:text.toLowerCase(),svg};
 }
 
-function refreshCaptcha(type){
-  const {text,svg}=generateCaptcha();
-  if(type==='login'){
-    loginCaptchaAnswer=text;
-    document.getElementById('loginCaptchaCanvas').innerHTML=svg;
-    document.getElementById('loginCaptchaVal').value='';
-  } else {
-    regCaptchaAnswer=text;
-    document.getElementById('regCaptchaCanvas').innerHTML=svg;
-    document.getElementById('regCaptchaVal').value='';
+async function refreshCaptcha(type){
+  try {
+    const res = await fetch(API_BASE + '/auth/captcha');
+    const svg = await res.text();
+    if(type==='login'){
+      document.getElementById('loginCaptchaCanvas').innerHTML=svg;
+      document.getElementById('loginCaptchaVal').value='';
+    } else {
+      document.getElementById('regCaptchaCanvas').innerHTML=svg;
+      document.getElementById('regCaptchaVal').value='';
+    }
+  } catch(e) {
+    console.error('Captcha fetch failed', e);
   }
 }
 
@@ -2416,46 +2395,7 @@ function showErr(id,show){
   if(el){el.classList.toggle('show',show);const inp=el.previousElementSibling||el.closest('.auth-input-wrap')?.querySelector('.auth-input');if(inp)inp.classList.toggle('error',show);}
 }
 
-function submitLogin(){
-  const email=document.getElementById('loginEmail').value.trim();
-  const pw=document.getElementById('loginPassword').value;
-  const cap=document.getElementById('loginCaptchaVal').value.trim().toLowerCase();
-  let ok=true;
-  showErr('loginEmailErr',!email||!email.includes('@'));if(!email||!email.includes('@'))ok=false;
-  showErr('loginPwErr',!pw);if(!pw)ok=false;
-  showErr('loginCaptchaErr',cap!==loginCaptchaAnswer);if(cap!==loginCaptchaAnswer){refreshCaptcha('login');ok=false;}
-  if(!ok)return;
-  // Demo: accept any valid-looking credentials
-  const btn=document.getElementById('loginSubmit');
-  btn.disabled=true;btn.textContent='Signing in…';
-  setTimeout(()=>{
-    btn.disabled=false;btn.textContent='Sign In';
-    const name=email.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-    setUser({name,email,role:'customer'});
-    closeAuth();showToast('👋 Welcome back, '+name.split(' ')[0]+'!');
-  },900);
-}
-
-function submitRegister(){
-  const name=document.getElementById('regName').value.trim();
-  const email=document.getElementById('regEmail').value.trim();
-  const pw=document.getElementById('regPassword').value;
-  const cap=document.getElementById('regCaptchaVal').value.trim().toLowerCase();
-  let ok=true;
-  showErr('regNameErr',!name);if(!name)ok=false;
-  showErr('regEmailErr',!email||!email.includes('@'));if(!email||!email.includes('@'))ok=false;
-  const pwOk=/[A-Z]/.test(pw)&&/[0-9]/.test(pw)&&pw.length>=8;
-  showErr('regPwErr',!pwOk);if(!pwOk)ok=false;
-  showErr('regCaptchaErr',cap!==regCaptchaAnswer);if(cap!==regCaptchaAnswer){refreshCaptcha('reg');ok=false;}
-  if(!ok)return;
-  const btn=document.getElementById('regSubmit');
-  btn.disabled=true;btn.textContent='Creating account…';
-  setTimeout(()=>{
-    btn.disabled=false;btn.textContent='Create Account';
-    setUser({name,email,role:'customer'});
-    closeAuth();showToast('🎉 Account created! Welcome, '+name.split(' ')[0]+'!');
-  },900);
-}
+// Auth functions moved to patch section below
 
 function oauthGoogle(){
   showToast('Google OAuth requires backend setup. See README.');
@@ -3109,12 +3049,38 @@ function getShippingData(){
     address:[v('custAddr1'),v('custAddr2'),v('custCity'),v('custState'),v('custPin'),document.getElementById('custCountry')?.value].filter(Boolean).join(', ')};
 }
 function addrKey(){return currentUser?'fs_addr_'+currentUser.email:null;}
-function saveAddress(){
-  const key=addrKey();if(!key)return;
+async function saveAddress(){
+  if(!currentUser) return;
   const v=id=>document.getElementById(id)?.value.trim()||'';
-  try{localStorage.setItem(key,JSON.stringify({phone:v('custPhone'),addr1:v('custAddr1'),addr2:v('custAddr2'),city:v('custCity'),state:v('custState'),pin:v('custPin'),country:document.getElementById('custCountry')?.value}));}catch(e){}
+  try {
+    await apiFetch('/address', {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Checkout Address',
+        name: v('custName') || currentUser.name,
+        phone: v('custPhone'),
+        line1: v('custAddr1'),
+        line2: v('custAddr2'),
+        city: v('custCity'),
+        state: v('custState'),
+        pincode: v('custPin'),
+        country: document.getElementById('custCountry')?.value || 'India',
+        is_default: true
+      })
+    });
+  } catch(e) { console.error('Save address failed', e); }
 }
-function getSavedAddress(){const key=addrKey();if(!key)return null;try{const s=localStorage.getItem(key);return s?JSON.parse(s):null;}catch(e){return null;}}
+async function getSavedAddress(){
+  if(!currentUser) return null;
+  try {
+    const res = await apiFetch('/address');
+    if(res.success && res.data.length > 0) {
+      const a = res.data[0];
+      return { phone: a.phone, addr1: a.line1, addr2: a.line2, city: a.city, state: a.state, pin: a.pincode, country: a.country };
+    }
+  } catch(e) { console.error('Get address failed', e); }
+  return null;
+}
 
 // ================================================================
 // SECURITY LOG
@@ -3413,7 +3379,7 @@ function launchRazorpay(){
 // ================================================================
 async function onPayOK(gw,pid){
   if(gw!=='cod'&&!validateCheckout())return;
-  saveAddress();
+  await saveAddress();
   closeCheckout();
   const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
   let discount=0;if(appliedCoupon){if(appliedCoupon.type==='percent')discount=sub*(appliedCoupon.value/100);else if(appliedCoupon.type==='flat')discount=Math.min(appliedCoupon.value,sub);}
@@ -3494,62 +3460,75 @@ function renderOrdersPage(){
 // ================================================================
 // PATCH: submitLogin — validate accounts + remember me + log
 // ================================================================
-function submitLogin(){
+async function submitLogin(){
   const email=document.getElementById('loginEmail').value.trim().toLowerCase();
-  const pw=document.getElementById('loginPassword').value;
-  const cap=document.getElementById('loginCaptchaVal').value.trim().toLowerCase();
+  const password=document.getElementById('loginPassword').value;
+  const captcha=document.getElementById('loginCaptchaVal').value.trim().toLowerCase();
   let ok=true;
   showErr('loginEmailErr',!email||!email.includes('@'));if(!email||!email.includes('@'))ok=false;
-  showErr('loginPwErr',!pw);if(!pw)ok=false;
-  showErr('loginCaptchaErr',cap!==loginCaptchaAnswer);if(cap!==loginCaptchaAnswer){refreshCaptcha('login');ok=false;}
+  showErr('loginPwErr',!password);if(!password)ok=false;
+  showErr('loginCaptchaErr',!captcha);if(!captcha)ok=false;
   if(!ok)return;
-  const accounts=JSON.parse(localStorage.getItem('fs_accounts')||'{}');
-  const acc=accounts[email];
-  if(!acc){showErr('loginEmailErr',true);document.getElementById('loginEmailErr').textContent='No account found with this email.';SecurityLog.add('failed_login',email+' — email not found','warning');return;}
-  if(acc.password!==btoa(pw)){showErr('loginPwErr',true);document.getElementById('loginPwErr').textContent='Incorrect password.';SecurityLog.add('failed_login',email+' — wrong password','warning');return;}
+
   const btn=document.getElementById('loginSubmit');btn.disabled=true;btn.textContent='Signing in...';
-  setTimeout(()=>{
+  try {
+    const res = await apiFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, captcha })
+    });
+    if(res.success){
+      setUser(res.user);
+      closeAuth();
+      showToast('Welcome back, ' + res.user.name.split(' ')[0] + '!');
+      SecurityLog.add('login_success', email, 'info');
+    } else {
+      showToast(res.message || 'Login failed', 'error');
+      refreshCaptcha('login');
+      if(res.message.includes('CAPTCHA')) showErr('loginCaptchaErr', true);
+    }
+  } catch(err) {
+    showToast(err.message || 'Server error', 'error');
+    refreshCaptcha('login');
+  } finally {
     btn.disabled=false;btn.textContent='Sign In';
-    orderHistory=acc.orders||[];
-    loadWishlist();
-    const user={name:acc.name,email,role:acc.role||'customer'};
-    handleRememberMe(user);
-    setUser(user);
-    renderOrdersPage();closeAuth();
-    SecurityLog.add('login_success',email,'info');
-    showToast('Welcome back, '+acc.name.split(' ')[0]+'!');
-  },600);
+  }
 }
 
-// ================================================================
-// PATCH: submitRegister — create account + log
-// ================================================================
-function submitRegister(){
+async function submitRegister(){
   const name=document.getElementById('regName').value.trim();
   const email=document.getElementById('regEmail').value.trim().toLowerCase();
-  const pw=document.getElementById('regPassword').value;
-  const cap=document.getElementById('regCaptchaVal').value.trim().toLowerCase();
+  const password=document.getElementById('regPassword').value;
+  const captcha=document.getElementById('regCaptchaVal').value.trim().toLowerCase();
   let ok=true;
   showErr('regNameErr',!name);if(!name)ok=false;
   showErr('regEmailErr',!email||!email.includes('@'));if(!email||!email.includes('@'))ok=false;
-  const pwOk=/[A-Z]/.test(pw)&&/[0-9]/.test(pw)&&pw.length>=8;
+  const pwOk=/[A-Z]/.test(password)&&/[0-9]/.test(password)&&password.length>=8;
   showErr('regPwErr',!pwOk);if(!pwOk)ok=false;
-  showErr('regCaptchaErr',cap!==regCaptchaAnswer);if(cap!==regCaptchaAnswer){refreshCaptcha('reg');ok=false;}
+  showErr('regCaptchaErr',!captcha);if(!captcha)ok=false;
   if(!ok)return;
-  const accounts=JSON.parse(localStorage.getItem('fs_accounts')||'{}');
-  if(accounts[email]){showErr('regEmailErr',true);document.getElementById('regEmailErr').textContent='Email already registered. Sign in instead.';return;}
+
   const btn=document.getElementById('regSubmit');btn.disabled=true;btn.textContent='Creating account...';
-  setTimeout(()=>{
+  try {
+    const res = await apiFetch('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password, captcha })
+    });
+    if(res.success){
+      setUser(res.user);
+      closeAuth();
+      showToast('Account created! Welcome, ' + name.split(' ')[0] + '!');
+      SecurityLog.add('register', email, 'info');
+    } else {
+      showToast(res.message || 'Registration failed', 'error');
+      refreshCaptcha('reg');
+      if(res.message.includes('CAPTCHA')) showErr('regCaptchaErr', true);
+    }
+  } catch(err) {
+    showToast(err.message || 'Server error', 'error');
+    refreshCaptcha('reg');
+  } finally {
     btn.disabled=false;btn.textContent='Create Account';
-    accounts[email]={name,email,password:btoa(pw),role:'customer',orders:[],createdAt:new Date().toISOString()};
-    localStorage.setItem('fs_accounts',JSON.stringify(accounts));
-    orderHistory=[];
-    const user={name,email,role:'customer'};
-    handleRememberMe(user);
-    setUser(user);renderOrdersPage();closeAuth();
-    SecurityLog.add('register',email+' — new account','info');
-    showToast('Account created! Welcome, '+name.split(' ')[0]+'!');
-  },600);
+  }
 }
 
 // ================================================================
@@ -3607,14 +3586,41 @@ async function logoutUser(){
 // ================================================================
 // PATCH: toggleWishlist — auth gate + persistence
 // ================================================================
-function saveWishlist(){if(!currentUser)return;try{localStorage.setItem('fs_wish_'+currentUser.email,JSON.stringify(wishlist));}catch(e){}}
-function loadWishlist(){if(!currentUser){wishlist=[];return;}try{const s=localStorage.getItem('fs_wish_'+currentUser.email);wishlist=s?JSON.parse(s):[];}catch(e){wishlist=[];}}
-function toggleWishlist(id){
+function saveWishlist(){} 
+async function loadWishlist(){
+  if(!currentUser){wishlist=[];return;}
+  try {
+    const res = await apiFetch('/wishlist');
+    if(res.success) {
+      wishlist = res.data.map(i => i.id);
+      renderWishlistPage();
+    }
+  } catch(e) { console.error('Load wishlist failed', e); }
+}
+async function toggleWishlist(id){
   if(!requireLogin('add to wishlist'))return;
   const idx=wishlist.indexOf(id);
-  if(idx>=0){wishlist.splice(idx,1);showToast('Removed from wishlist');}
-  else{wishlist.push(id);const b=DB.findProduct(id);showToast('"'+(b?.title||'Book')+'" added to wishlist');}
-  saveWishlist();renderWishlistPage();updateWishBtn(id);
+  const method = idx>=0 ? 'DELETE' : 'POST';
+  const url = idx>=0 ? `/wishlist/remove/${id}` : `/wishlist/add/${id}`;
+  
+  try {
+    const res = await apiFetch(url, { method });
+    if(res.success) {
+      if(idx>=0){
+        wishlist.splice(idx,1);
+        showToast('Removed from wishlist');
+      } else {
+        wishlist.push(id);
+        const b=DB.findProduct(id);
+        showToast('"'+(b?.title||'Book')+'" added to wishlist');
+      }
+      renderWishlistPage(); updateWishBtn(id);
+    } else {
+      showToast(res.message || 'Action failed', 'error');
+    }
+  } catch(e) {
+    showToast(e.message || 'Server error', 'error');
+  }
 }
 function isWishlisted(id){return wishlist.includes(id);}
 
