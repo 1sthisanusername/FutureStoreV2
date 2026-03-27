@@ -1,0 +1,15 @@
+﻿  console.log
+    ≡ƒöæ  Google OAuth configured
+
+      at Object.log (services/passportService.js:57:13)
+
+  console.log
+    ≡ƒöì  Algolia search enabled
+
+      at Object.log (services/searchService.js:14:13)
+
+  console.log
+    ≡ƒÆ╛  Local image storage (S3 not configured)
+
+      at Object.log (services/s3Service.js:54:11)
+

@@ -20,7 +20,15 @@ pool.query = (text, params) => {
 
 // Test connection on startup
 pool.connect()
-  .then(c => { console.log('✅  Supabase PostgreSQL connected'); c.release(); })
-  .catch(err => { console.error('❌  DB connection failed:', err.message); process.exit(1); });
+  .then(client => {
+    console.log('✅ PostgreSQL Connected (' + (process.env.PGHOST || 'localhost') + ')');
+    client.release();
+  })
+  .catch(err => {
+    console.error('❌ DB Connection Error:', err.message);
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1);
+    }
+  });
 
 module.exports = pool;

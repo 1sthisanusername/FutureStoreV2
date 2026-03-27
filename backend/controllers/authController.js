@@ -32,7 +32,7 @@ const register = async (req, res) => {
   req.session.captchaText = null;
 
   try {
-    const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.length) return res.status(409).json({ success: false, message: 'Email already registered.' });
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -41,14 +41,13 @@ const register = async (req, res) => {
 
     const { rows: result } = await pool.query(
       `INSERT INTO users (uuid, name, email, password_hash, role, email_verify_token)
-       VALUES (?, ?, ?, ?, 'customer', ?)
-       -- email_verify_token added dynamically; add column if not exists`,
+       VALUES ($1, $2, $3, $4, 'customer', $5) RETURNING id`,
       [uuid, name.trim(), email.toLowerCase().trim(), hash, verifyToken]
     );
 
-    const accessToken  = signAccess({ id: result.rows[0].id, role: 'customer' });
+    const accessToken  = signAccess({ id: result[0].id, role: 'customer' });
     const refreshToken = signRefresh();
-    await storeRefreshToken(result.rows[0].id, refreshToken);
+    await storeRefreshToken(result[0].id, refreshToken);
     setTokenCookies(res, accessToken, refreshToken);
 
     // Fire-and-forget emails
@@ -59,15 +58,18 @@ const register = async (req, res) => {
     return res.status(201).json({
       success: true, message: 'Account created!',
       token: accessToken,
-      user: { id: result.rows[0].id, uuid, name: name.trim(), email: email.toLowerCase(), role: 'customer' },
+      user: { id: result[0].id, uuid, name: name.trim(), email: email.toLowerCase(), role: 'customer' },
     });
   } catch (err) {
     // Column may not exist yet — add it
-    if (err.code === 'ER_BAD_FIELD_ERROR') {
+    if (err.code === '42703' || err.code === '42P01') { // PostgreSQL error codes for undefined column or table
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verify_token VARCHAR(64) DEFAULT NULL");
-      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified TINYINT(1) DEFAULT 0");
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE");
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64) DEFAULT NULL");
-      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires DATETIME DEFAULT NULL");
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP WITH TIME ZONE DEFAULT NULL");
+      // Retry the operation or inform the user to retry
+      console.warn('Database schema updated. Please retry the registration.');
+      return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
     }
     console.error('Register error:', err);
     return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
@@ -83,7 +85,7 @@ const login = async (req, res) => {
   req.session.captchaText = null;
 
   try {
-    const { rows: rows } = await pool.query('SELECT * FROM users WHERE email = ? AND is_active = true', [email.toLowerCase().trim()]);
+    const { rows: rows } = await pool.query('SELECT * FROM users WHERE email = $1 AND is_active = true', [email.toLowerCase().trim()]);
     if (!rows.length) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
 
     const user = rows[0];
@@ -95,13 +97,13 @@ const login = async (req, res) => {
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
       const attempts = (user.login_attempts || 0) + 1;
-      const lockUpdate = attempts >= 5 ? ', locked_until = DATE_ADD(NOW(), INTERVAL 30 MINUTE), login_attempts = 0' : '';
-      await pool.query(`UPDATE users SET login_attempts = ?${lockUpdate} WHERE id = ?`, [attempts >= 5 ? 0 : attempts, user.id]);
+      const lockUpdate = attempts >= 5 ? ", locked_until = NOW() + INTERVAL '30 minutes', login_attempts = 0" : '';
+      await pool.query(`UPDATE users SET login_attempts = $1${lockUpdate} WHERE id = $2`, [attempts >= 5 ? 0 : attempts, user.id]);
       const left = 5 - attempts;
       return res.status(401).json({ success: false, message: attempts >= 5 ? 'Account locked 30 min.' : `Invalid credentials. ${left} attempt(s) left.` });
     }
 
-    await pool.query('UPDATE users SET login_attempts=0, locked_until=NULL, last_login=NOW() WHERE id=?', [user.id]);
+    await pool.query('UPDATE users SET login_attempts=0, locked_until=NULL, last_login=NOW() WHERE id=$1', [user.id]);
 
     const accessToken  = signAccess({ id: user.id, role: user.role });
     const refreshToken = signRefresh();
@@ -163,17 +165,18 @@ const verifyPhoneOTP = async (req, res) => {
     if (!result.valid) return res.status(400).json({ success: false, message: result.message });
 
     // Check if user exists
-    let [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email?.toLowerCase()]);
+    let { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email?.toLowerCase()]);
     let user = rows[0];
 
     if (!user) {
       // Auto-register via phone
       const uuid = uuidv4();
+      const hashedPassword = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
       const { rows: ins } = await pool.query(
-        `INSERT INTO users (uuid, name, email, password_hash, role) VALUES (?,?,?,?,?)`,
-        [uuid, name || phone, email || `${phone}@phone.local`, bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10), 'customer']
+        `INSERT INTO users (uuid, name, email, password_hash, role) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [uuid, name || phone, email || `${phone}@phone.local`, hashedPassword, 'customer']
       );
-      user = { id: ins.rows[0].id, uuid, name: name || phone, email: email || `${phone}@phone.local`, role: 'customer' };
+      user = { id: ins[0].id, uuid, name: name || phone, email: email || `${phone}@phone.local`, role: 'customer' };
     }
 
     const accessToken  = signAccess({ id: user.id, role: user.role });

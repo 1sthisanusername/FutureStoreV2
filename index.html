@@ -1612,6 +1612,26 @@ const Validate = {
   length:   (v, max=500) => String(v||'').length <= max,
 };
 
+// ── API Fetch Utility ───────────────────────────────────────────
+// Handles communication with the Node.js backend, including
+// automatic refresh token rotation on 401 Unauthorized.
+const API_BASE = 'http://localhost:5000/api';
+async function apiFetch(url, opts = {}) {
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+  let res = await fetch(fullUrl, { credentials: 'include', ...opts });
+  if (res.status === 401 && !url.includes('/auth/refresh')) {
+    const refreshRes = await fetch(`${API_BASE}/auth/refresh`, { method: 'POST', credentials: 'include' });
+    if (refreshRes.ok) {
+      res = await fetch(fullUrl, { credentials: 'include', ...opts });
+    }
+  }
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.message || 'API request failed');
+  }
+  return res.json();
+}
+
 // ── Client-side Rate Limiter ─────────────────────────────────────
 // Prevents rapid repeated submissions (login, subscribe, coupon)
 // without needing a server roundtrip for obvious spam.

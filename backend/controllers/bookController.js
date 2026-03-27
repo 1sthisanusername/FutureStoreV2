@@ -16,7 +16,8 @@ const getBooks = async (req, res) => {
       if (algoliaResult) {
         const ids = algoliaResult.hits.map(h => h.id);
         if (!ids.length) return res.json({ success: true, data: [], meta: { total: 0 } });
-        const { rows: books } = await pool.query(`SELECT * FROM books WHERE id IN (?) AND is_active=true`, [ids]);
+        // PostgreSQL: id IN (...) requires individual placeholders or = ANY($1)
+        const { rows: books } = await pool.query(`SELECT * FROM books WHERE id = ANY($1) AND is_active=true`, [ids]);
         return res.json({ success: true, data: books, meta: { total: algoliaResult.total, pages: algoliaResult.pages, page: +page, source: 'algolia' } });
       }
     }
@@ -93,7 +94,7 @@ const addReview = async (req, res) => {
     );
     res.status(201).json({ success:true, message:'Review submitted!' });
   } catch (err) {
-    if (err.code==='ER_DUP_ENTRY') return res.status(409).json({ success:false, message:'You already reviewed this book.' });
+    if (err.code === '23505') return res.status(409).json({ success:false, message:'You already reviewed this book.' });
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to add review.' });
   }
