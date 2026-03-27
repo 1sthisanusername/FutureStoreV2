@@ -23,6 +23,7 @@
   --cta-light:#EAF2F8;
   --gold:#9CAF88;
   --green:#9CAF88;
+  --blue:#3d6a88;
   --border:rgba(75,56,50,0.15);
   --border-strong:rgba(75,56,50,0.28);
   --font-display:'Playfair Display',serif;
@@ -724,7 +725,6 @@ body.guest .cover-gate-banner { display: flex; }
 .skeleton-cover{height:200px;background:linear-gradient(90deg,var(--border) 25%,var(--warm-white) 50%,var(--border) 75%);background-size:600px 100%;animation:shimmer 1.4s infinite}
 .skeleton-line{height:12px;border-radius:4px;margin:8px 12px;background:linear-gradient(90deg,var(--border) 25%,var(--warm-white) 50%,var(--border) 75%);background-size:600px 100%;animation:shimmer 1.4s infinite}
 .skeleton-line.short{width:60%}
-@keyframes shimmer{0%{background-position:-600px 0}100%{background-position:600px 0}}
 
 /* ── REVIEWS ─────────────────────────────────────────────────── */
 .review-section{margin-top:20px;border-top:1px solid var(--border);padding-top:16px}
@@ -831,6 +831,13 @@ body.guest .cover-gate-banner { display: flex; }
 .status-delivered{background:#E8F5E9;color:#2e7d32}
 .status-cancelled{background:#FDECEA;color:#c62828}
 .status-pending{background:#FFF8E1;color:#f57f17}
+
+/* ── NAV JUMP BUTTONS (admin tabs) ───────────────────────────── */
+.nav-jump-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border-strong);font-size:13px;cursor:pointer;background:transparent;font-family:var(--font-body);color:var(--mid-brown);transition:all .2s;white-space:nowrap}
+.nav-jump-btn:hover{background:var(--cta);color:white;border-color:var(--cta);transform:translateY(-1px)}
+
+/* ── FIELD ERROR (inline form validation) ─────────────────────── */
+.field-err{font-size:11px;color:#e53935;margin-top:3px;display:block}
 
 </style>
 </head>
@@ -1187,6 +1194,7 @@ body.guest .cover-gate-banner { display: flex; }
         <button class="captcha-refresh" onclick="refreshCaptcha('login')" type="button">🔄</button>
         <input class="auth-input" type="text" id="loginCaptchaVal" placeholder="Code">
       </div>
+      <div class="auth-err" id="loginCaptchaErr">Please enter the captcha code.</div>
       <button class="auth-submit" id="loginSubmit" onclick="submitLogin()">Sign In</button>
       <div class="auth-divider">or</div>
       <button class="oauth-btn" onclick="oauthGoogle()">
@@ -1225,6 +1233,7 @@ body.guest .cover-gate-banner { display: flex; }
         <button class="captcha-refresh" onclick="refreshCaptcha('reg')" type="button">🔄</button>
         <input class="auth-input" type="text" id="regCaptchaVal" placeholder="Code">
       </div>
+      <div class="auth-err" id="regCaptchaErr">Please enter the captcha code.</div>
       <button class="auth-submit" id="regSubmit" onclick="submitRegister()">Create Account</button>
       <div class="auth-divider">or</div>
       <button class="oauth-btn" onclick="oauthGoogle()">
@@ -1492,6 +1501,60 @@ body.guest .cover-gate-banner { display: flex; }
   </div>
 </div>
 
+<!-- ADD BOOK MODAL (legacy inline — superseded by overlay modal below) -->
+<div class="modal-bg" id="addBookModalLegacy" onclick="closeAddBookModalLegacy()"></div>
+<div class="modal-box" id="addBookModalBoxLegacy">
+  <div class="modal-head"><h3>Add New Book</h3><button class="close-btn" onclick="closeAddBookModal()">&#x2715;</button></div>
+  <div class="modal-body">
+    <div class="form-row">
+      <div class="form-group"><label>Title <span style="color:var(--accent)">*</span></label><input type="text" id="abTitle"></div>
+      <div class="form-group"><label>Author <span style="color:var(--accent)">*</span></label><input type="text" id="abAuthor"></div>
+    </div>
+    <div class="form-row" style="margin-top:10px">
+      <div class="form-group"><label>Genre <span style="color:var(--accent)">*</span></label><input type="text" id="abGenre"></div>
+      <div class="form-group"><label>Price <span style="color:var(--accent)">*</span></label><input type="number" id="abPrice" step="0.01"></div>
+    </div>
+    <div class="form-row" style="margin-top:10px">
+      <div class="form-group"><label>Stock <span style="color:var(--accent)">*</span></label><input type="number" id="abStock"></div>
+      <div class="form-group"><label>Cover Color</label><input type="color" id="abColor" value="#2C3E50" style="height:38px;padding:2px"></div>
+    </div>
+    <div class="form-group" style="margin-top:10px">
+      <label>Description</label>
+      <textarea id="abDesc" style="width:100%;height:80px;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"></textarea>
+    </div>
+    <button class="auth-submit" style="margin-top:20px" onclick="submitAddBook()">Add Book</button>
+  </div>
+</div>
+
+<!-- EDIT BOOK MODAL -->
+<div class="modal-bg" id="editBookModal" onclick="closeEditBookModal()"></div>
+<div class="modal-box" id="editBookModalBox">
+  <div class="modal-head"><h3>Edit Book</h3><button class="close-btn" onclick="closeEditBookModal()">&#x2715;</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="ebId">
+    <div class="form-row">
+      <div class="form-group"><label>Title <span style="color:var(--accent)">*</span></label><input type="text" id="ebTitle"></div>
+      <div class="form-group"><label>Author <span style="color:var(--accent)">*</span></label><input type="text" id="ebAuthor"></div>
+    </div>
+    <div class="form-row" style="margin-top:10px">
+      <div class="form-group"><label>Genre <span style="color:var(--accent)">*</span></label><input type="text" id="ebGenre"></div>
+      <div class="form-group"><label>Price <span style="color:var(--accent)">*</span></label><input type="number" id="ebPrice" step="0.01"></div>
+    </div>
+    <div class="form-row" style="margin-top:10px">
+      <div class="form-group"><label>Stock <span style="color:var(--accent)">*</span></label><input type="number" id="ebStock"></div>
+      <div class="form-group"><label>Cover Color</label><input type="color" id="ebColor" value="#2C3E50" style="height:38px;padding:2px"></div>
+    </div>
+    <div class="form-group" style="margin-top:10px">
+      <label>Description</label>
+      <textarea id="ebDesc" style="width:100%;height:80px;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"></textarea>
+    </div>
+    <div class="form-group" style="margin-top:10px">
+      <label><input type="checkbox" id="ebActive"> Active in catalog</label>
+    </div>
+    <button class="auth-submit" style="margin-top:20px" onclick="submitEditBook()">Update Book</button>
+  </div>
+</div>
+
 <!-- PREVIEW MODAL -->
 <div class="prev-bg" id="prevBg" onclick="closePreview()"></div>
 <div class="prev-box" id="prevBox">
@@ -1525,10 +1588,10 @@ body.guest .cover-gate-banner { display: flex; }
       </div>
       <div class="prev-actions">
         <button class="prev-add" onclick="previewAdd()">&#x1F6D2; Add to Cart</button>
-        <button class="prev-wish" id="prevWishBtn" onclick="previewWish()" title="Add to wish// ================================================================
-// CORE STATE & UTILITIES
-// ================================================================
-"prev-trust-item"><span class="pti-icon">🔄</span> 30-day returns</div>
+        <button class="prev-wish" id="prevWishBtn" onclick="previewWish()" title="Add to wishlist">♥</button>
+      </div>
+      <div class="prev-trust">
+        <div class="prev-trust-item"><span class="pti-icon">🔄</span> 30-day returns</div>
         <div class="prev-trust-item"><span class="pti-icon">📦</span> Free ship over $35</div>
         <div class="prev-trust-item"><span class="pti-icon">⭐</span> Verified reviews</div>
       </div>
@@ -1578,7 +1641,7 @@ body.guest .cover-gate-banner { display: flex; }
       <li><a href="#">Returns &amp; Refunds</a></li>
     </ul></div>
   </div>
-  <div class="footer-bottom"><span>&#169; 2025 Future Store. All rights reserved.</span><span>Privacy &#183; Terms</span></div>
+  <div class="footer-bottom"><span>© <script>document.write(new Date().getFullYear())</script> Future Store. All rights reserved.</span><span>Privacy · Terms</span></div>
 </footer>
 
 <script>
@@ -1903,6 +1966,13 @@ async function renderBestsellers(){
 let prevId=null;
 async function openPreview(id){
   try {
+    // Clear previous data to avoid mapping bugs while loading
+    document.getElementById('prevArtTitle').textContent = 'Loading...';
+    document.getElementById('prevArtAuthor').textContent = '';
+    document.getElementById('prevTitle').textContent = 'Loading...';
+    document.getElementById('prevDesc').textContent = 'Please wait...';
+    document.getElementById('prevPrice').textContent = '---';
+    
     const res = await apiFetch(`/books/${id}`);
     if(!res.success) throw new Error(res.message);
     const b = res.data;
@@ -2080,22 +2150,45 @@ function openRzp(name,email,phone,amt){
   rzp.on('payment.failed',r=>showToast('Payment failed: '+r.error.description));
   rzp.open();
 }
-function onPayOK(gw,pid){
-  closeCheckout();
-  const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  let discount=0;
-  if(appliedCoupon){if(appliedCoupon.type==='percent')discount=sub*(appliedCoupon.value/100);else if(appliedCoupon.type==='flat')discount=Math.min(appliedCoupon.value,sub);}
-  const ship=appliedCoupon?.type==='shipping'?0:(sub-discount>=35?0:4.99);
-  const total=Math.max(0,sub-discount)+ship;
-  addOrder([...cart],total,ship,discount,appliedCoupon?.code||null);
-  showToast((gw==='paypal'?'&#x1F4B3; PayPal':'&#x26A1; Razorpay')+' payment successful! &#x1F389;');
-  cart=[];appliedCoupon=null;updateCartUI();
-  // Reset coupon UI
-  document.getElementById('couponInner').innerHTML=`<div class="coupon-form"><input class="coupon-input" type="text" id="couponInput" placeholder="Coupon code (e.g. SAVE10)" style="text-transform:uppercase"><button class="coupon-apply" onclick="applyCoupon()">Apply</button></div>`;
-  setTimeout(()=>{
-    showToast('Order confirmed! Payment ID: '+pid);
-    if(currentUser)goPage('orders');
-  },600);
+async function onPayOK(gw, pid) {
+  if (!validateCheckout()) return;
+  const btn = document.querySelector(`.${gw}-btn`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing...'; }
+
+  try {
+    const sub = cart.reduce((s, i) => s+i.price*i.qty, 0);
+    let discount = 0;
+    if (appliedCoupon) {
+      if (appliedCoupon.type === 'percent') discount = sub * (appliedCoupon.value / 100);
+      else if (appliedCoupon.type === 'flat') discount = Math.min(appliedCoupon.value, sub);
+    }
+    const ship = appliedCoupon?.type === 'shipping' ? 0 : (sub - discount >= 35 ? 0 : 4.99);
+    const total = Math.max(0, sub - discount) + ship;
+
+    const res = await apiFetch('/orders', {
+      method: 'POST',
+      body: JSON.stringify({
+        items: cart.map(i => ({ id: i.id, qty: i.qty })),
+        payment_gateway: gw,
+        payment_id: pid,
+        shipping: getShippingData().address,
+        coupon_code: appliedCoupon?.code || null
+      })
+    });
+
+    if (res.success) {
+      showToast('Order confirmed! 🎉');
+      cart = []; appliedCoupon = null; updateCartUI();
+      document.getElementById('couponInner').innerHTML = `<div class="coupon-form"><input class="coupon-input" type="text" id="couponInput" placeholder="Coupon code (e.g. SAVE10)" style="text-transform:uppercase"><button class="coupon-apply" onclick="applyCoupon()">Apply</button></div>`;
+      closeCheckout();
+      showOrderConfirm(res.order); // Use actual backend order object
+      saveAddress(); // Persist used address for next checkout
+    }
+  } catch(e) {
+    showToast(e.message || 'Failed to place order', 'danger');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = gw === 'cod' ? 'Place COD Order' : (gw === 'paypal' ? 'Pay with PayPal' : 'Pay with Razorpay'); }
+  }
 }
 
 // ================================================================
@@ -2237,6 +2330,9 @@ function setUser(user){
     document.body.classList.remove('guest');
     document.getElementById('loginBtn').style.display='none';
     document.getElementById('userDropdownWrap').style.display='';
+    // Show Admin Panel link for admins
+    const adminLink=document.getElementById('adminNavBtn');
+    if(adminLink)adminLink.style.display=user.role==='admin'?'':'none';
     const init=user.name?user.name[0].toUpperCase():'U';
     document.getElementById('userAvatar').textContent=init;
     document.getElementById('userBtnName').textContent=user.name?.split(' ')[0]||'Account';
@@ -2269,13 +2365,18 @@ function setUser(user){
   }
 }
 
-function logoutUser(){
+async function logoutUser(){
+  try { await apiFetch('/auth/logout', { method: 'POST' }); } catch(e){}
   setUser(null);
-  wishlist=[];renderWishlistPage();
+  wishlist=[]; renderWishlist(); 
+  localStorage.removeItem('fs_user'); 
+  sessionStorage.removeItem('fs_user_sess');
   showToast('Signed out successfully.');
   closeUserDropdown();
-  if(document.querySelector('.page.active')?.id==='page-account'||document.querySelector('.page.active')?.id==='page-orders'||document.querySelector('.page.active')?.id==='page-wishlist'){
-    goPage('home');
+  if(window.location.hash.startsWith('#admin') || window.location.hash==='#account' || window.location.hash==='#orders'){
+    window.location.hash='#home';
+  } else {
+    window.location.reload();
   }
 }
 
@@ -2457,20 +2558,26 @@ function refreshCaptchaIfNeeded(){
 function renderSecurityLogs(){
   const el=document.getElementById('securityLogsTable'); if(!el)return;
   const filter=document.getElementById('logFilter')?.value || 'all';
-  const logs=SecurityLog.get().filter(l=>filter==='all'||l.type===filter);
-  if(!logs.length){el.innerHTML='<p style="padding:20px;text-align:center;color:var(--mid-brown)">No security logs found.</p>';return;}
-  el.innerHTML=`<table class="admin-table"><thead><tr><th>Time</th><th>Event</th><th>User</th><th>Message</th></tr></thead><tbody>
-    ${logs.map(l=>`<tr>
-      <td style="font-size:11px">${new Date(l.ts).toLocaleString()}</td>
-      <td><span class="status-badge" style="background:var(--warm-white);color:var(--mid-brown)">${l.type}</span></td>
-      <td style="font-size:12px">${l.user}</td>
-      <td style="font-size:12px">${sanitize(l.detail)}</td>
-    </tr>`).join('')}</tbody></table>`;
+  
+  // Now fetching from the same source as dashboard (for admin visibility)
+  apiFetch('/admin/dashboard').then(res => {
+    const logs = (res.data?.auditLogs || []).filter(l => filter==='all'||l.type===filter);
+    if(!logs.length){el.innerHTML='<p style="padding:20px;text-align:center;color:var(--mid-brown)">No security logs found.</p>';return;}
+    el.innerHTML=`<table class="admin-table"><thead><tr><th>Time</th><th>Event</th><th>Actor</th><th>Detail</th></tr></thead><tbody>
+      ${logs.map(l=>`<tr>
+        <td style="font-size:11px">${new Date(l.created_at).toLocaleString()}</td>
+        <td><span class="status-badge" style="background:var(--warm-white);color:var(--mid-brown)">${l.action_type || l.type}</span></td>
+        <td style="font-size:12px">${l.actor || l.user_id || 'system'}</td>
+        <td style="font-size:12px">${sanitize(l.details || l.detail)}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }).catch(() => {
+    el.innerHTML='<p style="padding:20px;text-align:center;color:red">Failed to fetch server logs.</p>';
+  });
 }
 function clearSecurityLogs(){ if(confirm('Clear all security logs?')){localStorage.removeItem('fs_sec_log');renderSecurityLogs();} }
 
 function oauthGoogle(){
-  showToast('Google OAuth requires backend setup. See README.');
+  window.location.href = '/api/auth/google';
 }
 function showForgotPassword(){
   const email=prompt('Enter your email address to reset your password:');
@@ -2634,50 +2741,66 @@ function addOrder(cartItems,total,shipping,discount,couponCode){
   renderOrdersPage();
 }
 
-function renderOrdersPage(){
+async function renderOrdersPage(){
   const list=document.getElementById('ordersList');if(!list)return;
-  if(!orderHistory.length){
-    list.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--mid-brown)"><div style="font-size:48px;margin-bottom:16px">📦</div><h3 style="font-family:var(--font-display);font-size:22px;margin-bottom:8px">No orders yet</h3><p>Once you place an order, it will appear here.</p><button class="btn-primary" onclick="goPage('catalog')" style="margin-top:20px">Start Shopping</button></div>`;
-    return;
+  list.innerHTML='<div style="text-align:center;padding:40px"><div class="spinner month"></div><p style="color:var(--mid-brown);margin-top:10px">Loading orders...</p></div>';
+  
+  try {
+    const res = await apiFetch('/orders');
+    if(!res.success) throw new Error(res.message);
+    const apiOrderHistory = res.data;
+    window.lastFetchedOrders = apiOrderHistory; // Cache for reorder logic
+    
+    if(!apiOrderHistory.length){
+      list.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--mid-brown)"><div style="font-size:48px;margin-bottom:16px">📦</div><h3 style="font-family:var(--font-display);font-size:22px;margin-bottom:8px">No orders yet</h3><p>Once you place an order, it will appear here.</p><button class="btn-primary" onclick="goPage('catalog')" style="margin-top:20px">Start Shopping</button></div>`;
+      return;
+    }
+    
+    list.innerHTML=apiOrderHistory.map((o,idx)=>{
+      const statusMap={confirmed:'status-confirmed',shipped:'status-shipped',delivered:'status-delivered',pending:'status-pending',cancelled:'status-cancelled'};
+      const date = new Date(o.created_at);
+      return`<div class="order-card">
+        <div class="order-head" onclick="toggleOrderBody(${idx})">
+          <div>
+            <div class="order-num">#${o.order_number}</div>
+            <div class="order-date">${date.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px">
+            <span class="order-status ${statusMap[o.status]||'status-pending'}">● ${o.status.charAt(0).toUpperCase()+o.status.slice(1)}</span>
+            <div class="order-total">${fmt(o.total)}</div>
+            <span style="color:var(--mid-brown);font-size:12px">▼</span>
+          </div>
+        </div>
+        <div class="order-body" id="orderBody${idx}">
+          <div class="order-items-list">
+            ${(o.items||[]).map(i=>`
+              <div class="oi-row">
+                <div class="oi-cover" style="background:${i.cover_color||'var(--accent-brown)'}">
+                  <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:rgba(0,0,0,.15)"></div>
+                </div>
+                <div style="flex:1">
+                  <div class="oi-title">${i.title}</div>
+                  <div class="oi-meta">${i.author} · Qty: ${i.qty}</div>
+                </div>
+                <div style="font-size:13px;font-weight:500">${fmt(i.unit_price*i.qty)}</div>
+              </div>`).join('')}
+          </div>
+          <div>
+            <div class="order-summary-row"><span>Subtotal</span><span>${fmt(o.subtotal)}</span></div>
+            ${o.discount>0?`<div class="order-summary-row" style="color:var(--green)"><span>Discount (${o.coupon_code})</span><span>-${fmt(o.discount)}</span></div>`:''}
+            <div class="order-summary-row"><span>Shipping</span><span>${o.shipping_fee==0?'<span style="color:var(--green)">Free</span>':fmt(o.shipping_fee)}</span></div>
+            <div class="order-summary-total"><span>Total</span><span>${fmt(o.total)}</span></div>
+            <div style="margin-top:12px;padding:8px;background:var(--bg-soft);border-radius:6px;font-size:12px;color:var(--mid-brown)">
+              <strong>Shipping to:</strong> ${o.shipping_name}<br>${o.shipping_address}
+            </div>
+          </div>
+          <button class="reorder-btn" onclick="reorder(${idx})">🔄 Reorder</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML=`<div class="no-results"><p style="color:red">Failed to load orders: ${e.message}</p></div>`;
   }
-  list.innerHTML=orderHistory.map((o,idx)=>{
-    const statusMap={confirmed:'status-confirmed',shipped:'status-shipped',delivered:'status-delivered',pending:'status-pending',cancelled:'status-cancelled'};
-    return`<div class="order-card">
-      <div class="order-head" onclick="toggleOrderBody(${idx})">
-        <div>
-          <div class="order-num">#${o.id}</div>
-          <div class="order-date">${o.date.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:16px">
-          <span class="order-status ${statusMap[o.status]||'status-pending'}">● ${o.status.charAt(0).toUpperCase()+o.status.slice(1)}</span>
-          <div class="order-total">$${o.total.toFixed(2)}</div>
-          <span style="color:var(--mid-brown);font-size:12px">▼</span>
-        </div>
-      </div>
-      <div class="order-body" id="orderBody${idx}">
-        <div class="order-items-list">
-          ${o.items.map(i=>`
-            <div class="oi-row">
-              <div class="oi-cover" style="background:${i.bg}">
-                <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:rgba(0,0,0,.15)"></div>
-              </div>
-              <div style="flex:1">
-                <div class="oi-title">${i.title}</div>
-                <div class="oi-meta">${i.author} · Qty: ${i.qty}</div>
-              </div>
-              <div style="font-size:13px;font-weight:500">$${(i.price*i.qty).toFixed(2)}</div>
-            </div>`).join('')}
-        </div>
-        <div>
-          <div class="order-summary-row"><span>Subtotal</span><span>$${o.subtotal.toFixed(2)}</span></div>
-          ${o.discount>0?`<div class="order-summary-row" style="color:var(--green)"><span>Discount (${o.couponCode})</span><span>-$${o.discount.toFixed(2)}</span></div>`:''}
-          <div class="order-summary-row"><span>Shipping</span><span>${o.shipping===0?'<span style="color:var(--green)">Free</span>':'$'+o.shipping.toFixed(2)}</span></div>
-          <div class="order-summary-total"><span>Total</span><span>$${o.total.toFixed(2)}</span></div>
-        </div>
-        <button class="reorder-btn" onclick="reorder(${idx})" >🔄 Reorder</button>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 function toggleOrderBody(idx){
@@ -2686,9 +2809,12 @@ function toggleOrderBody(idx){
 }
 
 function reorder(idx){
-  const order=orderHistory[idx];
-  order.items.forEach(i=>addToCart(i.id));
+  const orders = window.lastFetchedOrders || [];
+  const order = orders[idx];
+  if(!order) return;
+  (order.items||[]).forEach(i => addToCart(i.book_id || i.id));
   toggleCart();
+  showToast('Items added to cart from order #' + order.order_number);
 }
 
 // ================================================================
@@ -3000,24 +3126,31 @@ function openForgotModal(){
   document.getElementById('forgotModal').classList.add('open');
 }
 function closeForgotModal(){document.getElementById('forgotModal').classList.remove('open');}
-function submitForgotPassword(){
+async function submitForgotPassword(){
   const email=document.getElementById('forgotEmail').value.trim().toLowerCase();
-  const pw=document.getElementById('forgotNewPw').value;
-  const cpw=document.getElementById('forgotConfirmPw').value;
   const se=(id,msg)=>{const el=document.getElementById(id);if(el){el.textContent=msg;el.style.display=msg?'block':'none';}};
-  se('forgotEmailErr','');se('forgotNewPwErr','');se('forgotConfirmPwErr','');
-  let ok=true;
-  if(!email||!email.includes('@')){se('forgotEmailErr','Valid email required');ok=false;}
-  if(!pw||pw.length<8||!/[A-Z]/.test(pw)||!/[0-9]/.test(pw)){se('forgotNewPwErr','Min 8 chars, 1 uppercase, 1 number');ok=false;}
-  if(pw!==cpw){se('forgotConfirmPwErr','Passwords do not match');ok=false;}
-  if(!ok)return;
-  const accounts=JSON.parse(localStorage.getItem('fs_accounts')||'{}');
-  if(!accounts[email]){se('forgotEmailErr','No account found with this email');return;}
-  accounts[email].password=btoa(pw);
-  localStorage.setItem('fs_accounts',JSON.stringify(accounts));
-  closeForgotModal();showToast('Password reset! You can now sign in.');
-  openAuth('login');
-  setTimeout(()=>{const el=document.getElementById('loginEmail');if(el)el.value=email;},200);
+  se('forgotEmailErr','');
+  if(!email||!email.includes('@')){se('forgotEmailErr','Valid email required');return;}
+  
+  const btn=document.querySelector('#forgotModal .auth-submit');
+  if(btn){btn.disabled=true;btn.textContent='Sending...';}
+
+  try {
+    const res = await apiFetch('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+    if(res.success){
+      closeForgotModal();
+      showToast('If an account exists, a reset link has been sent to your email.');
+    } else {
+      se('forgotEmailErr', res.message || 'Failed to send reset link');
+    }
+  } catch(e) {
+    showToast('Server error. Please try again.', 'error');
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='Send Reset Link';}
+  }
 }
 
 // ================================================================
@@ -3287,7 +3420,7 @@ async function renderAdminOrders(){
     el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Num</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th>Update</th></tr></thead><tbody>
     ${orders.map(o=>`<tr>
       <td><code style="font-size:11px">${o.order_number}</code></td>
-      <td><div style="font-weight:500;font-size:13px">${o.customer_name}</div><div style="font-size:11px;color:var(--mid-brown)">${o.customer_email}</div></td>
+      <td><div style="font-weight:500;font-size:13px">${o.shipping_name}</div><div style="font-size:11px;color:var(--mid-brown)">${o.shipping_email}</div></td>
       <td style="font-weight:600">${fmt(o.total||0)}</td>
       <td><span class="status-badge status-${o.status}">${o.status}</span></td>
       <td style="font-size:12px;white-space:nowrap">${new Date(o.created_at).toLocaleDateString()}</td>
@@ -3334,23 +3467,101 @@ async function renderAdminBooks(){
       <td style="font-weight:600">${fmt(b.price)}</td>
       <td style="color:${b.stock<=5?'var(--accent)':'inherit'}">${b.stock}</td>
       <td><span class="status-badge ${b.is_active?'status-confirmed':'status-cancelled'}" style="cursor:pointer" onclick="toggleBookStatus(${b.id}, ${!b.is_active})">${b.is_active?'Active':'Hidden'}</span></td>
-      <td><button class="rm-btn" onclick="deleteBookAdmin(${b.id})" title="Delete book">&#x2715;</button></td>
+      <td>
+        <div style="display:flex;gap:5px">
+          <button class="rm-btn" onclick="openEditBook(${b.id})" title="Edit book" style="background:var(--blue);color:white">&#x270E;</button>
+          <button class="rm-btn" onclick="deleteBookAdmin(${b.id})" title="Delete book">&#x2715;</button>
+        </div>
+      </td>
     </tr>`).join('')}</tbody></table></div>`;
   } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
 }
-async function toggleBookStatus(id, active){
+
+function openAddBookModal(){
+  document.getElementById('addBookModal').classList.add('open');
+  document.getElementById('addBookModalBox').classList.add('open');
+}
+function closeAddBookModal(){
+  document.getElementById('addBookModal').classList.remove('open');
+  document.getElementById('addBookModalBox').classList.remove('open');
+}
+
+async function openEditBook(id){
   try {
-    const res = await apiFetch(`/admin/books/${id}`, { method:'PUT', body:JSON.stringify({ is_active:active }) });
-    if(res.success) { showToast(`Book ${active?'enabled':'hidden'}`); renderAdminBooks(); }
+    const res = await apiFetch(`/books/${id}`);
+    if(!res.success) throw new Error(res.message);
+    const b = res.data;
+    document.getElementById('ebId').value = b.id;
+    document.getElementById('ebTitle').value = b.title;
+    document.getElementById('ebAuthor').value = b.author;
+    document.getElementById('ebGenre').value = b.genre;
+    document.getElementById('ebPrice').value = b.price;
+    document.getElementById('ebStock').value = b.stock;
+    document.getElementById('ebColor').value = b.cover_color || '#2C3E50';
+    document.getElementById('ebDesc').value = b.description || '';
+    document.getElementById('ebActive').checked = b.is_active;
+
+    document.getElementById('editBookModal').classList.add('open');
+    document.getElementById('editBookModalBox').classList.add('open');
   } catch(e) { showToast(e.message, 'error'); }
 }
+function closeEditBookModal(){
+  document.getElementById('editBookModal').classList.remove('open');
+  document.getElementById('editBookModalBox').classList.remove('open');
+}
+
+async function submitEditBook(){
+  const id = document.getElementById('ebId').value;
+  const body = {
+    title: document.getElementById('ebTitle').value,
+    author: document.getElementById('ebAuthor').value,
+    genre: document.getElementById('ebGenre').value,
+    price: parseFloat(document.getElementById('ebPrice').value),
+    stock: parseInt(document.getElementById('ebStock').value),
+    cover_color: document.getElementById('ebColor').value,
+    description: document.getElementById('ebDesc').value,
+    is_active: document.getElementById('ebActive').checked
+  };
+  if(!body.title || !body.author || isNaN(body.price)) { showToast('Required fields missing','error'); return; }
+  
+  try {
+    const res = await apiFetch(`/admin/books/${id}`, { method:'PUT', body:JSON.stringify(body) });
+    if(res.success){ showToast('Book updated!'); closeEditBookModal(); renderAdminBooks(); }
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function submitAddBook(){
+  const title=document.getElementById('abTitle').value;
+  const author=document.getElementById('abAuthor').value;
+  const genre=document.getElementById('abGenre').value;
+  const price=parseFloat(document.getElementById('abPrice').value);
+  const stock=parseInt(document.getElementById('abStock').value);
+  const cover_color=document.getElementById('abColor').value;
+  const description=document.getElementById('abDesc').value;
+  if(!title||!author||!genre||isNaN(price)||isNaN(stock)){showToast('Please fill all required fields','error');return;}
+  try {
+    const res=await apiFetch('/admin/books',{method:'POST',body:JSON.stringify({title,author,genre,price,stock,cover_color,description})});
+    if(res.success){showToast('Book added successfully!');closeAddBookModal();renderAdminBooks();}
+  } catch(e){showToast(e.message,'error');}
+}
+
 async function deleteBookAdmin(id){
-  if(!confirm('Are you sure you want to remove this book from the catalog?')) return;
+  if(!confirm('Permanently delete this book? This cannot be undone.'))return;
   try {
-    const res = await apiFetch(`/admin/books/${id}`, { method:'DELETE' });
-    if(res.success) { showToast('Book removed.'); renderAdminBooks(); }
-  } catch(e) { showToast(e.message, 'error'); }
+    const res=await apiFetch(`/admin/books/${id}`,{method:'DELETE'});
+    if(res.success){showToast('Book deleted.');renderAdminBooks();}
+    else throw new Error(res.message);
+  } catch(e){showToast(e.message,'error');}
 }
+
+async function toggleBookStatus(id,isActive){
+  try {
+    const res=await apiFetch(`/admin/books/${id}`,{method:'PUT',body:JSON.stringify({is_active:isActive})});
+    if(res.success){showToast(isActive?'Book set to Active.':'Book hidden.');renderAdminBooks();}
+    else throw new Error(res.message);
+  } catch(e){showToast(e.message,'error');}
+}
+
 async function renderAdminCoupons(){
   const el=document.getElementById('adminCouponsTable');if(!el)return;
   try {
@@ -3397,22 +3608,6 @@ async function renderAdminSupport(){
       <td style="font-size:12px;white-space:nowrap">${new Date(t.created_at).toLocaleDateString()}</td>
     </tr>`).join('')}</tbody></table></div>`;
   } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
-}
-function openAddBookModal(){document.getElementById('addBookModal').classList.add('open');}
-function closeAddBookModal(){document.getElementById('addBookModal').classList.remove('open');}
-async function submitAddBook(){
-  const title=document.getElementById('abTitle').value;
-  const author=document.getElementById('abAuthor').value;
-  const genre=document.getElementById('abGenre').value;
-  const price=parseFloat(document.getElementById('abPrice').value);
-  const stock=parseInt(document.getElementById('abStock').value);
-  const cover_color=document.getElementById('abColor').value;
-  const description=document.getElementById('abDesc').value;
-  if(!title||!author||!genre||isNaN(price)||isNaN(stock)){showToast('Please fill all required fields','error');return;}
-  try {
-    const res=await apiFetch('/admin/books',{method:'POST',body:JSON.stringify({title,author,genre,price,stock,cover_color,description})});
-    if(res.success){showToast('Book added successfully!');closeAddBookModal();renderAdminBooks();}
-  } catch(e){showToast(e.message,'error');}
 }
 function openAddCouponModal(){document.getElementById('addCouponModal').classList.add('open');}
 function closeAddCouponModal(){document.getElementById('addCouponModal').classList.remove('open');}

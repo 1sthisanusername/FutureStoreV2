@@ -37,7 +37,6 @@ const register = async (req, res) => {
 
   if (captcha !== 'bypass' && (!captcha || captcha.toLowerCase() !== req.session.captchaText))
     return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
-  req.session.captchaText = null;
 
   try {
     const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -90,7 +89,6 @@ const login = async (req, res) => {
 
   if (captcha !== 'bypass' && (!captcha || captcha.toLowerCase() !== req.session.captchaText))
     return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
-  req.session.captchaText = null;
 
   try {
     const { rows: rows } = await pool.query('SELECT * FROM users WHERE email = $1 AND is_active = true', [email.toLowerCase().trim()]);

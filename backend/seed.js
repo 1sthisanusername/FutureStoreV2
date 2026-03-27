@@ -27,15 +27,21 @@ const coupons = [
 async function seed() {
   console.log('🌱  Seeding Supabase database...');
 
+  // Setup constraints
+  await pool.query('ALTER TABLE books DROP CONSTRAINT IF EXISTS unique_title_author').catch(()=>{});
+  await pool.query('DROP INDEX IF EXISTS unique_title_author').catch(()=>{});
+  await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS unique_books_title_author ON books (title, author)');
+  await pool.query('TRUNCATE order_items, orders, wishlist, reviews, books RESTART IDENTITY CASCADE');
+
   // Admin user
   const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@12345';
   const adminHash = await bcrypt.hash(adminPassword, 12);
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@futurestore.com';
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@futurestore.com').replace(/[';]/g, '');
 
   await pool.query(
     `INSERT INTO users (uuid, name, email, password_hash, role)
      VALUES ($1, 'Admin', $2, $3, 'admin')
-     ON CONFLICT (email) DO NOTHING`,
+     ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email, password_hash = EXCLUDED.password_hash`,
     [uuidv4(), adminEmail, adminHash]
   );
   console.log('✅  Admin user ready:', adminEmail);
@@ -45,12 +51,12 @@ async function seed() {
     await pool.query(
       `INSERT INTO books (title, author, genre, price, original_price, stock, pages, publisher, year, badge, cover_color, rating, reviews_count)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT (title, author) DO NOTHING`,
       [b.title, b.author, b.genre, b.price, b.original_price, b.stock,
        b.pages, b.publisher, b.year, b.badge, b.cover_color, b.rating, b.reviews_count]
     );
   }
-  console.log(`✅  ${books.length} books seeded`);
+  console.log(`✅  ${books.length} books seeded (cleaned up duplicates)`);
 
   // Coupons
   for (const c of coupons) {
@@ -61,9 +67,13 @@ async function seed() {
       [c.code, c.type, c.value, c.min_order]
     );
   }
-  console.log(`✅  ${coupons.length} coupons seeded (SAVE10, WELCOME20, FLAT5, FREESHIP)`);
+  console.log(`✅  ${coupons.length} coupons seeded`);
 
-  console.log('\n🎉  Done! Run: npm run dev');
+  // Cleanup user emails
+  await pool.query(`UPDATE users SET email = REPLACE(REPLACE(email, '''', ''), ';', '')`);
+  console.log('✅  User emails sanitized.');
+
+  console.log('\n🎉  Done!');
   process.exit(0);
 }
 
