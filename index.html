@@ -2811,37 +2811,46 @@ function renderRelatedBooks(bookId){
 // REVIEWS
 // ================================================================
 let reviewStar=0;
-function getReviews(bookId){try{return JSON.parse(localStorage.getItem('fs_rev_'+bookId)||'[]');}catch(e){return[];}}
-function saveReview(bookId,rev){
-  const revs=getReviews(bookId);revs.unshift(rev);
-  try{localStorage.setItem('fs_rev_'+bookId,JSON.stringify(revs.slice(0,50)));}catch(e){}
+async function getReviews(bookId){
+  try {
+    const res = await apiFetch(`/books/${bookId}`);
+    return res.data?.reviews || [];
+  } catch(e) { return []; }
+}
+async function saveReview(bookId, rev){
+  try {
+    await apiFetch(`/books/${bookId}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify({ rating: rev.rating, comment: rev.text })
+    });
+  } catch(e) { throw e; }
 }
 function setReviewStar(n){
   reviewStar=n;
   document.querySelectorAll('#reviewStarPicker span').forEach((s,i)=>s.classList.toggle('lit',i<n));
   const err=document.getElementById('reviewStarErr');if(err){err.textContent='';err.style.display='none';}
 }
-function renderPreviewReviews(bookId){
+async function renderPreviewReviews(bookId){
   const list=document.getElementById('prevReviewList');
   const cta=document.getElementById('prevReviewCTA');
   const form=document.getElementById('prevReviewForm');
   const cnt=document.getElementById('prevReviewCount');
   if(!list)return;
-  const revs=getReviews(bookId);
+  const revs=await getReviews(bookId);
   if(cnt)cnt.textContent=revs.length?`(${revs.length})`:' — Be the first!';
   if(!revs.length){list.innerHTML='<p style="font-size:13px;color:var(--mid-brown)">No reviews yet.</p>';}
   else{
-    list.innerHTML='<div>'+revs.slice(0,5).map(r=>`
+    list.innerHTML='<div>'+revs.slice(0,10).map(r=>`
       <div class="review-item">
         <div class="review-meta">
-          <span class="review-author">${r.name}</span>
+          <span class="review-author">${r.reviewer_name || 'Anonymous'}</span>
           <span class="review-stars-disp">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
-          <span class="review-date">${new Date(r.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>
+          <span class="review-date">${new Date(r.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>
         </div>
-        <div class="review-text">${r.text||'<em style="color:var(--mid-brown)">No comment</em>'}</div>
+        <div class="review-text">${r.comment||'<em style="color:var(--mid-brown)">No comment</em>'}</div>
       </div>`).join('')+'</div>';
   }
-  const alreadyReviewed=currentUser&&revs.some(r=>r.email===currentUser.email);
+  const alreadyReviewed=currentUser&&revs.some(r=>r.user_id===currentUser.id);
   if(!currentUser){cta.innerHTML='<a style="font-size:13px;color:var(--cta);cursor:pointer" onclick="openAuth(\'login\')">Sign in to review</a>';}
   else if(alreadyReviewed){cta.innerHTML='<span style="font-size:13px;color:var(--green)">✅ You reviewed this book</span>';}
   else{cta.innerHTML='<a style="font-size:13px;color:var(--cta);cursor:pointer" onclick="document.getElementById(\'prevReviewForm\').style.display=\'\'">+ Write a Review</a>';}
@@ -2851,7 +2860,7 @@ function renderPreviewReviews(bookId){
   const ta=document.getElementById('reviewText');if(ta)ta.value='';
   const cc=document.getElementById('reviewCharCount');if(cc)cc.textContent='0/500';
 }
-function submitReview(){
+async function submitReview(){
   if(!currentUser){openAuth('login');return;}
   if(!reviewStar){
     const err=document.getElementById('reviewStarErr');
@@ -2859,9 +2868,11 @@ function submitReview(){
     return;
   }
   const text=document.getElementById('reviewText')?.value.trim()||'';
-  saveReview(prevId,{name:currentUser.name,email:currentUser.email,rating:reviewStar,text,date:new Date().toISOString()});
-  showToast('Review posted! Thank you.');
-  renderPreviewReviews(prevId);
+  try {
+    await saveReview(prevId, { rating: reviewStar, text });
+    showToast('Review posted! Thank you.');
+    renderPreviewReviews(prevId);
+  } catch(e) { showToast(e.message || 'Failed to post review', 'danger'); }
 }
 
 // ================================================================
@@ -3133,93 +3144,70 @@ function adminTab(tab){
   if(tab==='logs')renderSecurityLogs();
   if(tab==='stats')renderAdminStats();
 }
-function getAllOrders(){
-  try{
-    const accounts=Object.values(JSON.parse(localStorage.getItem('fs_accounts')||'{}'));
-    return accounts.flatMap(acc=>(acc.orders||[]).map(o=>({...o,userEmail:acc.email,userName:acc.name}))).sort((a,b)=>new Date(b.date)-new Date(a.date));
-  }catch(e){return[];}
-}
-function renderAdminOrders(){
+// getAllOrders removed - using API
+async function renderAdminOrders(){
   const el=document.getElementById('adminOrdersTable');if(!el)return;
-  let orders=getAllOrders();
-  const q=document.getElementById('adminOrderSearch')?.value.toLowerCase();
-  const st=document.getElementById('adminOrderFilter')?.value;
-  if(q)orders=orders.filter(o=>o.id?.toLowerCase().includes(q)||o.userEmail?.toLowerCase().includes(q));
-  if(st&&st!=='all')orders=orders.filter(o=>o.status===st);
-  if(!orders.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--mid-brown)"><div style="font-size:40px;opacity:.3;margin-bottom:10px">📦</div><p>No orders found.</p></div>';return;}
-  el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th><th>Update</th></tr></thead><tbody>
-  ${orders.map(o=>`<tr>
-    <td><code style="font-size:11px">${o.id||'—'}</code></td>
-    <td><div style="font-weight:500;font-size:13px">${o.userName||'—'}</div><div style="font-size:11px;color:var(--mid-brown)">${o.userEmail||''}</div></td>
-    <td>${(o.items||[]).slice(0,2).map(i=>`<div style="font-size:12px">${i.title} x${i.qty}</div>`).join('')}${(o.items||[]).length>2?`<div style="font-size:11px;color:var(--mid-brown)">+${o.items.length-2} more</div>`:''}</td>
-    <td style="font-weight:600">${fmt(o.total||0)}</td>
-    <td><span class="status-badge status-${o.status||'confirmed'}">${o.status||'confirmed'}</span>${o.returnRequested?'<br><span style="font-size:10px;color:#e53935">Return Requested</span>':''}</td>
-    <td style="font-size:12px;white-space:nowrap">${new Date(o.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
-    <td><select class="sort-select" style="font-size:11px;padding:3px 6px" onchange="updateOrderStatus('${o.userEmail}','${o.id}',this.value)">
-      <option value="confirmed" ${o.status==='confirmed'?'selected':''}>Confirmed</option>
-      <option value="shipped" ${o.status==='shipped'?'selected':''}>Shipped</option>
-      <option value="delivered" ${o.status==='delivered'?'selected':''}>Delivered</option>
-      <option value="cancelled" ${o.status==='cancelled'?'selected':''}>Cancelled</option>
-    </select></td>
-  </tr>`).join('')}</tbody></table></div>
-  <div style="font-size:12px;color:var(--mid-brown);margin-top:8px;text-align:right">${orders.length} order${orders.length!==1?'s':''}</div>`;
+  const status=document.getElementById('adminOrderFilter')?.value;
+  try {
+    const res = await apiFetch(`/admin/orders?status=${status==='all'?'':status}`);
+    if(!res.success) throw new Error(res.message);
+    const orders = res.data;
+    if(!orders.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--mid-brown)"><div style="font-size:40px;opacity:.3;margin-bottom:10px">📦</div><p>No orders found.</p></div>';return;}
+    el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Num</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th>Update</th></tr></thead><tbody>
+    ${orders.map(o=>`<tr>
+      <td><code style="font-size:11px">${o.order_number}</code></td>
+      <td><div style="font-weight:500;font-size:13px">${o.customer_name}</div><div style="font-size:11px;color:var(--mid-brown)">${o.customer_email}</div></td>
+      <td style="font-weight:600">${fmt(o.total||0)}</td>
+      <td><span class="status-badge status-${o.status}">${o.status}</span></td>
+      <td style="font-size:12px;white-space:nowrap">${new Date(o.created_at).toLocaleDateString()}</td>
+      <td><select class="sort-select" style="font-size:11px;padding:3px 6px" onchange="updateOrderStatus('${o.id}',this.value)">
+        <option value="pending" ${o.status==='pending'?'selected':''}>Pending</option>
+        <option value="confirmed" ${o.status==='confirmed'?'selected':''}>Confirmed</option>
+        <option value="shipped" ${o.status==='shipped'?'selected':''}>Shipped</option>
+        <option value="delivered" ${o.status==='delivered'?'selected':''}>Delivered</option>
+        <option value="cancelled" ${o.status==='cancelled'?'selected':''}>Cancelled</option>
+      </select></td>
+    </tr>`).join('')}</tbody></table></div>`;
+  } catch(e) { el.innerHTML=`<p style="color:red;padding:20px;text-align:center">Error: ${e.message}</p>`; }
 }
-function updateOrderStatus(email,orderId,status){
-  try{
-    const accounts=JSON.parse(localStorage.getItem('fs_accounts')||'{}');
-    if(accounts[email]){const o=accounts[email].orders?.find(o=>o.id===orderId);if(o){o.status=status;localStorage.setItem('fs_accounts',JSON.stringify(accounts));showToast(`Order ${orderId} → ${status}`);}}
-  }catch(e){}
+async function updateOrderStatus(orderId, status){
+  try {
+    const res = await apiFetch(`/admin/orders/${orderId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+    if(res.success) { showToast(`Order status updated to ${status}`); renderAdminOrders(); }
+    else throw new Error(res.message);
+  } catch(e) { showToast(e.message, 'danger'); }
 }
-function renderAdminUsers(){
+async function renderAdminUsers(){
   const el=document.getElementById('adminUsersTable');if(!el)return;
-  try{
-    const accounts=Object.values(JSON.parse(localStorage.getItem('fs_accounts')||'{}'));
-    if(!accounts.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--mid-brown)"><div style="font-size:40px;opacity:.3;margin-bottom:10px">👤</div><p>No users yet.</p></div>';return;}
+  try {
+    const res = await apiFetch('/admin/users');
+    const users = res.data;
     el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Orders</th><th>Registered</th></tr></thead><tbody>
-    ${accounts.map(a=>`<tr><td style="font-weight:500">${a.name||'—'}</td><td>${a.email}</td><td><span class="status-badge ${a.role==='admin'?'status-shipped':'status-confirmed'}">${a.role||'customer'}</span></td><td>${(a.orders||[]).length}</td><td style="font-size:12px">${a.createdAt?new Date(a.createdAt).toLocaleDateString():'-'}</td></tr>`).join('')}</tbody></table></div>
-    <div style="font-size:12px;color:var(--mid-brown);margin-top:8px;text-align:right">${accounts.length} user${accounts.length!==1?'s':''}</div>`;
-  }catch(e){}
+    ${users.map(a=>`<tr><td style="font-weight:500">${a.name||'—'}</td><td>${a.email}</td><td><span class="status-badge ${a.role==='admin'?'status-shipped':'status-confirmed'}">${a.role}</span></td><td>${a.order_count}</td><td style="font-size:12px">${new Date(a.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table></div>`;
+  } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
 }
-function renderSecurityLogs(){
-  const el=document.getElementById('securityLogsTable');if(!el)return;
-  let logs=SecurityLog.get();
-  const filter=document.getElementById('logFilter')?.value;
-  if(filter&&filter!=='all')logs=logs.filter(l=>l.type===filter||(filter==='suspicious'&&l.severity==='suspicious'));
-  const alerts=SecurityLog.analyze();
-  let alertsHTML=alerts.map(a=>`<div style="background:${a.level==='danger'?'#FDECEA':'#FFF8E1'};border:1px solid ${a.level==='danger'?'#FFCDD2':'#FFE082'};border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:13px;color:${a.level==='danger'?'#c62828':'#f57f17'}">${a.level==='danger'?'⚠️':'⚡'} ${a.msg}</div>`).join('');
-  if(!logs.length){el.innerHTML=alertsHTML+'<div style="text-align:center;padding:40px;color:var(--mid-brown)"><div style="font-size:40px;opacity:.3;margin-bottom:10px">🛡️</div><p>No events logged yet.</p></div>';return;}
-  el.innerHTML=alertsHTML+`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Time</th><th>Event</th><th>Detail</th><th>User</th><th>Severity</th></tr></thead><tbody>
-  ${logs.map(l=>`<tr style="${l.severity==='suspicious'?'background:#fff3f3':l.severity==='warning'?'background:#fffde7':''}">
-    <td style="font-size:11px;white-space:nowrap">${new Date(l.ts).toLocaleTimeString()}<br><span style="color:var(--mid-brown)">${new Date(l.ts).toLocaleDateString()}</span></td>
-    <td style="font-size:12px;font-weight:500">${l.type.replace(/_/g,' ')}</td>
-    <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.detail||'—'}</td>
-    <td style="font-size:12px">${l.user||'guest'}</td>
-    <td><span class="status-badge ${l.severity==='suspicious'?'status-cancelled':l.severity==='warning'?'status-pending':'status-confirmed'}" style="font-size:10px">${l.severity}</span></td>
-  </tr>`).join('')}</tbody></table></div>
-  <div style="font-size:12px;color:var(--mid-brown);margin-top:8px;text-align:right">${logs.length} events</div>`;
-}
-function clearSecurityLogs(){if(confirm('Clear all security logs?')){localStorage.removeItem(SecurityLog.key);renderSecurityLogs();}}
-function renderAdminStats(){
+async function renderAdminStats(){
   const el=document.getElementById('adminStatsGrid');if(!el)return;
-  const orders=getAllOrders();
-  const accounts=Object.values(JSON.parse(localStorage.getItem('fs_accounts')||'{}'));
-  const subs=JSON.parse(localStorage.getItem('fs_subscribers')||'[]');
-  const tickets=JSON.parse(localStorage.getItem('fs_support')||'[]');
-  const revenue=orders.filter(o=>o.status!=='cancelled').reduce((s,o)=>s+parseFloat(o.total||0),0);
-  const avgOrd=orders.filter(o=>o.status!=='cancelled').length?revenue/orders.filter(o=>o.status!=='cancelled').length:0;
-  const bookCounts={};orders.forEach(o=>(o.items||[]).forEach(i=>{bookCounts[i.title]=(bookCounts[i.title]||0)+i.qty;}));
-  const topBooks=Object.entries(bookCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  el.innerHTML=`
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px">
-      ${[['Total Orders',orders.length,'📦'],['Revenue',fmt(revenue),'💰'],['Users',accounts.length,'👤'],['Subscribers',subs.length,'📧'],['Avg Order',fmt(avgOrd),'📊'],['Support Tickets',tickets.length,'🎫']].map(([l,v,i])=>`
-      <div style="background:var(--warm-white);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center">
-        <div style="font-size:28px;margin-bottom:6px">${i}</div>
-        <div style="font-family:var(--font-display);font-size:24px;font-weight:700">${v}</div>
-        <div style="font-size:11px;color:var(--mid-brown);margin-top:3px">${l}</div>
-      </div>`).join('')}
-    </div>
-    ${topBooks.length?`<div style="background:var(--warm-white);border:1px solid var(--border);border-radius:12px;padding:18px"><div class="m-sec-title" style="margin-bottom:12px">Top Selling Books</div>
-    ${topBooks.map(([title,qty],i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span><b>${i+1}.</b> ${title}</span><span style="font-weight:600;color:var(--cta)">${qty} sold</span></div>`).join('')}</div>`:''}`;
+  try {
+    const res = await apiFetch('/admin/dashboard');
+    const d = res.data;
+    el.innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px">
+        ${[['Orders',d.totalOrders,'📦'],['Revenue',fmt(d.totalRevenue),'💰'],['Users',d.totalUsers,'👤'],['Books',d.totalBooks,'📚'],['Low Stock',d.lowStock,'⚠️'],['Pending',d.pendingOrders,'⌛']].map(([l,v,i])=>`
+        <div style="background:var(--warm-white);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center">
+          <div style="font-size:28px;margin-bottom:6px">${i}</div>
+          <div style="font-family:var(--font-display);font-size:24px;font-weight:700">${v}</div>
+          <div style="font-size:11px;color:var(--mid-brown);margin-top:3px">${l}</div>
+        </div>`).join('')}
+      </div>
+      <div style="background:var(--warm-white);border:1px solid var(--border);border-radius:12px;padding:18px">
+        <div class="m-sec-title" style="margin-bottom:12px">Top Selling Books</div>
+        ${d.topBooks.map(([title,qty,i])=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${title}</span><span style="font-weight:600;color:var(--cta)">${qty} units</span></div>`).join('')}
+      </div>`;
+  } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
 }
 
 // ================================================================
@@ -3399,15 +3387,11 @@ async function onPayOK(gw,pid){
 // ================================================================
 // PATCH: addOrder — show confirmation modal + save to account
 // ================================================================
-function saveAccountOrders(email,orders){
-  if(!email)return;const accounts=JSON.parse(localStorage.getItem('fs_accounts')||'{}');
-  if(accounts[email]){accounts[email].orders=orders;localStorage.setItem('fs_accounts',JSON.stringify(accounts));}
-}
+// saveAccountOrders removed - using API
 const _origAddOrder=addOrder;
 function addOrder(cartItems,total,shipping,discount,couponCode,orderNumber){
   const order={id:orderNumber||('FS-'+Date.now().toString(36).toUpperCase()),date:new Date(),status:'confirmed',items:cartItems.map(i=>({...i})),subtotal:cartItems.reduce((s,i)=>s+i.price*i.qty,0),shipping,discount:discount||0,couponCode:couponCode||null,total};
   orderHistory.unshift(order);
-  if(currentUser)saveAccountOrders(currentUser.email,orderHistory);
   renderOrdersPage();
   setTimeout(()=>showOrderConfirm(order),400);
 }
@@ -3684,7 +3668,7 @@ document.body.classList.add('guest');
 // Restore user session
 // Restore session (remember me or session storage)
 const _savedUser=localStorage.getItem('fs_user')||sessionStorage.getItem('fs_user_sess');
-if(_savedUser){try{setUser(JSON.parse(_savedUser));orderHistory=JSON.parse(localStorage.getItem('fs_accounts')||'{}')[currentUser?.email]?.orders||[];}catch(_){}}
+if(_savedUser){try{setUser(JSON.parse(_savedUser));}catch(_){}}
 else{try{loadCart();}catch(e){}}
 
 document.querySelector('.nav-links a[data-page="home"]').classList.add('active');

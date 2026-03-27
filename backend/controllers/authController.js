@@ -212,12 +212,12 @@ const googleOAuthCallback = async (req, res) => {
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
   try {
-    const { rows: rows } = await pool.query('SELECT id, name FROM users WHERE email = ?', [email?.toLowerCase()]);
+    const { rows: rows } = await pool.query('SELECT id, name FROM users WHERE email = $1', [email?.toLowerCase()]);
     if (!rows.length) return res.json({ success: true, message: 'If that email exists, a reset link was sent.' });
 
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    await pool.query('UPDATE users SET reset_token=?, reset_token_expires=? WHERE id=?', [token, expires, rows[0].id]);
+    await pool.query('UPDATE users SET reset_token=$1, reset_token_expires=$2 WHERE id=$3', [token, expires, rows[0].id]);
 
     const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
     sendPasswordReset({ name: rows[0].name, email }, link).catch(() => {});
@@ -234,12 +234,12 @@ const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
     const { rows: rows } = await pool.query(
-      'SELECT id FROM users WHERE reset_token=? AND reset_token_expires > NOW()', [token]
+      'SELECT id FROM users WHERE reset_token=$1 AND reset_token_expires > NOW()', [token]
     );
     if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
 
     const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-    await pool.query('UPDATE users SET password_hash=?, reset_token=NULL, reset_token_expires=NULL WHERE id=?', [hash, rows[0].id]);
+    await pool.query('UPDATE users SET password_hash=$1, reset_token=NULL, reset_token_expires=NULL WHERE id=$2', [hash, rows[0].id]);
     await revokeAllTokens(rows[0].id);
 
     res.json({ success: true, message: 'Password reset successfully. Please log in.' });
@@ -253,9 +253,9 @@ const resetPassword = async (req, res) => {
 const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
-    const { rows: rows } = await pool.query('SELECT id FROM users WHERE email_verify_token=?', [token]);
+    const { rows: rows } = await pool.query('SELECT id FROM users WHERE email_verify_token=$1', [token]);
     if (!rows.length) return res.status(400).json({ success: false, message: 'Invalid verification link.' });
-    await pool.query('UPDATE users SET email_verified=1, email_verify_token=NULL WHERE id=?', [rows[0].id]);
+    await pool.query('UPDATE users SET email_verified=true, email_verify_token=NULL WHERE id=$2', [rows[0].id]);
     res.json({ success: true, message: 'Email verified successfully!' });
   } catch (err) {
     console.error(err);
@@ -267,7 +267,7 @@ const verifyEmail = async (req, res) => {
 const me = async (req, res) => {
   try {
     const { rows: rows } = await pool.query(
-      'SELECT id, uuid, name, email, role, created_at, last_login FROM users WHERE id = ?', [req.user.id]
+      'SELECT id, uuid, name, email, role, created_at, last_login FROM users WHERE id = $1', [req.user.id]
     );
     res.json({ success: true, data: rows[0] });
   } catch (err) {
@@ -279,11 +279,11 @@ const me = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const { rows: rows } = await pool.query('SELECT password_hash FROM users WHERE id=?', [req.user.id]);
+    const { rows: rows } = await pool.query('SELECT password_hash FROM users WHERE id=$1', [req.user.id]);
     const match = await bcrypt.compare(currentPassword, rows[0].password_hash);
     if (!match) return res.status(400).json({ success: false, message: 'Current password incorrect.' });
     const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-    await pool.query('UPDATE users SET password_hash=? WHERE id=?', [hash, req.user.id]);
+    await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, req.user.id]);
     await revokeAllTokens(req.user.id);
     res.json({ success: true, message: 'Password updated. Please log in again.' });
   } catch (err) {
