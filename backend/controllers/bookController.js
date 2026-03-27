@@ -27,6 +27,7 @@ const getBooks = async (req, res) => {
     if (minPrice)  { where.push(`b.price >= $${params.length+1}`);           params.push(+minPrice); }
     if (maxPrice)  { where.push(`b.price <= $${params.length+1}`);           params.push(+maxPrice); }
     if (minRating) { where.push(`b.rating >= $${params.length+1}`);          params.push(+minRating); }
+    if (req.query.badge) { where.push(`b.badge = $${params.length+1}`);       params.push(req.query.badge); }
     if (q)         {
       const qp = `%${q}%`;
       where.push(`(b.title ILIKE $${params.length+1} OR b.author ILIKE $${params.length+2} OR b.genre ILIKE $${params.length+3})`);

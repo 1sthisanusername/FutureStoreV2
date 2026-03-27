@@ -1669,69 +1669,7 @@ const ClientRateLimit = (() => {
   };
 })();
 
-const DB = {
-  categories: [
-    {id:1,  stock:42,name:'Fiction',    icon:'&#x1F4D6;',bg:'#0E2040',desc:'Stories that transport you to another world'},
-    {id:2,  stock:85,name:'Non-Fiction',icon:'&#x1F4A1;',bg:'#2E1C08',desc:'Real stories, real knowledge'},
-    {id:3,  stock:28,name:'Science',    icon:'&#x1F52C;',bg:'#0E2A1A',desc:'Explore the universe through data'},
-    {id:4,  stock:0,name:'History',    icon:'&#x1F3DB;&#xFE0F;',bg:'#381010',desc:'Learn from the past'},
-    {id:5,  stock:61,name:'Philosophy', icon:'&#x1F914;',bg:'#1A1A1A',desc:'Question everything'},
-    {id:6,  stock:33,name:'Mystery',    icon:'&#x1F575;&#xFE0F;',bg:'#101830',desc:'Edge-of-your-seat suspense'},
-    {id:7,  stock:19,name:'Biography',  icon:'&#x1F3AD;',bg:'#220E32',desc:'Lives worth knowing about'},
-    {id:8,  stock:0,name:'Self-Help',  icon:'&#x1F331;',bg:'#0E2214',desc:'Tools for a better you'},
-  ],
-  products: [
-    {id:1, title:'The Midnight Library',     author:'Matt Haig',           price:16.99,oldPrice:null, rating:4.7,reviews:28410, catId:1,badge:'bestseller',bg:'#5D8AA8',newArrival:false,pages:304,publisher:'Canongate',  year:2020,desc:'Between life and death there is a library, and within that library, the shelves go on forever. Every book provides a chance to try another life you could have lived.'},
-    {id:2, title:'Atomic Habits',            author:'James Clear',         price:18.99,oldPrice:24.99,rating:4.9,reviews:154200,catId:2,badge:'sale',       bg:'#4A3010',newArrival:false,pages:320,publisher:'Avery',       year:2018,desc:'No matter your goals, Atomic Habits offers a proven framework for improving every day. Practical strategies for forming good habits and breaking bad ones.'},
-    {id:3, title:'Project Hail Mary',        author:'Andy Weir',           price:14.99,oldPrice:null, rating:4.8,reviews:89300, catId:3,badge:null,        bg:'#1A5C3A',newArrival:false,pages:476,publisher:'Ballantine',  year:2021,desc:'Ryland Grace is the sole survivor on a desperate last-chance mission. If he fails, humanity and the earth itself will perish. A propulsive, exciting page-turner.'},
-    {id:4, title:'The Name of the Wind',     author:'Patrick Rothfuss',    price:15.99,oldPrice:null, rating:4.6,reviews:120000,catId:1,badge:null,        bg:'#2C0940',newArrival:false,pages:662,publisher:'DAW Books',   year:2007,desc:'The tale of Kvothe from his childhood in a troupe of traveling players, to his daring bid to enter a legendary school of magic.'},
-    {id:5, title:'Sapiens',                  author:'Yuval Noah Harari',   price:17.99,oldPrice:22.99,rating:4.5,reviews:321000,catId:4,badge:'sale',       bg:'#5A1010',newArrival:false,pages:443,publisher:'Harper',      year:2015,desc:'A groundbreaking narrative of humanity\'s creation and evolution. A #1 international bestseller exploring how biology and history have defined us.'},
-    {id:6, title:'The Alchemist',            author:'Paulo Coelho',        price:13.99,oldPrice:null, rating:4.3,reviews:450000,catId:1,badge:null,        bg:'#1F5C5C',newArrival:false,pages:197,publisher:'HarperOne',   year:1988,desc:'The mystical story of Santiago, a shepherd boy who yearns to travel in search of a worldly treasure. A story about following your dreams.'},
-    {id:7, title:'Thinking, Fast and Slow',  author:'Daniel Kahneman',     price:16.49,oldPrice:null, rating:4.4,reviews:187000,catId:2,badge:null,        bg:'#1A2E45',newArrival:false,pages:499,publisher:'FSG',         year:2011,desc:'A tour of the mind explaining the two systems that drive our thinking: System 1 is fast, intuitive, emotional; System 2 is slower and more logical.'},
-    {id:8, title:'Dune',                     author:'Frank Herbert',       price:12.99,oldPrice:null, rating:4.8,reviews:284000,catId:1,badge:'classic',   bg:'#4A2E08',newArrival:false,pages:688,publisher:'Chilton',     year:1965,desc:'Set on the desert planet Arrakis. A stunning blend of adventure and mysticism, widely considered the greatest science fiction novel ever written.'},
-    {id:9,  stock:12, title:'Being and Time',           author:'Martin Heidegger',    price:19.99,oldPrice:null, rating:4.2,reviews:32000, catId:5,badge:null,        bg:'#1A1A1A',newArrival:true, pages:589,publisher:'Harper',      year:1927,desc:'One of the most influential philosophical works of the 20th century. A profound investigation of what it means to exist in the world.'},
-    {id:10, stock:47,title:'The Body Keeps the Score', author:'Bessel van der Kolk', price:15.99,oldPrice:20.99,rating:4.7,reviews:112000,catId:2,badge:'sale',       bg:'#1E3D31',newArrival:true, pages:464,publisher:'Viking',      year:2014,desc:'Dr. van der Kolk transforms our understanding of traumatic stress, revealing how it rearranges the brain\'s wiring and what can be done to repair the damage.'},
-    {id:11, stock:5,title:'Tomorrow, and Tomorrow',   author:'Gabrielle Zevin',     price:17.49,oldPrice:null, rating:4.5,reviews:74000, catId:1,badge:'new',       bg:'#3A0A22',newArrival:true, pages:416,publisher:'Knopf',       year:2022,desc:'A dazzling novel about friendship, love, and the creative impulse told across three decades. Two college friends bonded by a shared love of video games.'},
-    {id:12, stock:3,title:'The Wager',                author:'David Grann',         price:18.99,oldPrice:null, rating:4.6,reviews:56000, catId:4,badge:'new',       bg:'#0A1E35',newArrival:true, pages:352,publisher:'Doubleday',  year:2023,desc:'A riveting story of shipwreck, survival, and a remarkable mutiny. In 1742 a vessel arrived carrying survivors of a British ship lost at the edge of the world.'},
-    {id:13, stock:55,title:'Gone Girl',                author:'Gillian Flynn',       price:13.49,oldPrice:null, rating:4.1,reviews:198000,catId:6,badge:null,        bg:'#1A1A2E',newArrival:false,pages:422,publisher:'Crown',       year:2012,desc:'On their fifth anniversary, Nick Dunne\'s wife Amy suddenly disappears. A chilling thriller about marriage, media, and the dark side of human nature.'},
-    {id:14, stock:22,title:'Educated',                 author:'Tara Westover',       price:14.99,oldPrice:19.99,rating:4.7,reviews:267000,catId:7,badge:'sale',       bg:'#2A1A3A',newArrival:false,pages:334,publisher:'Random House',year:2018,desc:'A memoir about a woman kept out of school who leaves her survivalist family to earn a PhD from Cambridge. An unforgettable story about the power of education.'},
-    {id:15, stock:38,title:'The Power of Now',         author:'Eckhart Tolle',       price:12.99,oldPrice:null, rating:4.4,reviews:143000,catId:8,badge:null,        bg:'#1A3A20',newArrival:false,pages:229,publisher:'New World',   year:1997,desc:'A guide to spiritual enlightenment that has transformed millions of lives. Tolle shows the key to freedom lies in living in the present moment.'},
-    {id:16, stock:0,title:'A Brief History of Time',  author:'Stephen Hawking',     price:11.99,oldPrice:null, rating:4.5,reviews:312000,catId:3,badge:'classic',   bg:'#0D1B3E',newArrival:false,pages:212,publisher:'Bantam',      year:1988,desc:'Hawking\'s landmark work on the nature of the universe, black holes, and the Big Bang. Still the greatest science popular book ever written.'},
-  ],
-
-  // Simulated SQL SELECT with WHERE, ORDER BY, LIMIT
-  // Usage mirrors: SELECT * FROM products WHERE catId=1 ORDER BY rating DESC LIMIT 8
-  query(table, where={}, orderBy=null, limit=null){
-    let rows=[...this[table]];
-    Object.entries(where).forEach(([k,v])=>{
-      if(v===null||v===undefined)return;
-      if(typeof v==='object'&&v.op){
-        if(v.op==='gte')rows=rows.filter(r=>r[k]>=v.val);
-        if(v.op==='lte')rows=rows.filter(r=>r[k]<=v.val);
-        if(v.op==='like')rows=rows.filter(r=>String(r[k]).toLowerCase().includes(v.val.toLowerCase()));
-        if(v.op==='in')rows=rows.filter(r=>v.val.includes(r[k]));
-      }else{rows=rows.filter(r=>r[k]===v);}
-    });
-    if(orderBy){const[col,dir]=orderBy.split(' ');rows.sort((a,b)=>dir==='DESC'?b[col]-a[col]:a[col]-b[col]);}
-    if(limit)rows=rows.slice(0,limit);
-    return rows;
-  },
-
-  // JOIN products LEFT JOIN categories ON products.catId = categories.id
-  join(where={},orderBy=null,limit=null){
-    return this.query('products',where,orderBy,limit).map(p=>{
-      const c=this.categories.find(x=>x.id===p.catId);
-      return{...p,genre:c?c.name:'General'};
-    });
-  },
-
-  findProduct(id){
-    const p=this.products.find(x=>x.id===id);
-    if(!p)return null;
-    const c=this.categories.find(x=>x.id===p.catId);
-    return{...p,genre:c?c.name:'General'};
-  }
-};
+// DB object removed - now using API
 
 // ================================================================
 // PAYMENT KEYS — replace with real credentials
@@ -1755,44 +1693,10 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 // ================================================================
 // BOOK CARD
 // ================================================================
-function bookCard(b){
-  return`<div class="book-card" onclick="openPreview(${b.id})">
-    <div class="bcc" style="background:${b.bg}">
-      ${badgeHTML(b.badge)}
-      <div class="bcc-title">${b.title}</div>
-      <div class="bcc-author">${b.author}</div>
-    </div>
-    <div>
-      <div class="book-title">${b.title}</div>
-      <div class="book-author">${b.author}</div>
-      <div class="book-rating"><span class="stars">${stars(b.rating)}</span><span class="rcount">(${b.reviews.toLocaleString()})</span></div>
-      <div class="book-price-row">
-        <div><span class="price">$${b.price.toFixed(2)}</span>${b.oldPrice?`<span class="price-old">$${b.oldPrice.toFixed(2)}</span>`:''}</div>
-        <button class="add-btn" onclick="event.stopPropagation();addToCart(${b.id})">+</button>
-      </div>
-    </div>
-  </div>`;
-}
-
 function renderGrid(id,books){
   const el=document.getElementById(id);if(!el)return;
-  if(!books.length){el.innerHTML=`<div class="no-results"><div class="nri">&#x1F4EB;</div><h3>No books found</h3><p>Try adjusting your filters or search terms.</p></div>`;return;}
+  if(!books || !books.length){el.innerHTML=`<div class="no-results"><div class="nri">&#x1F4EB;</div><h3>No books found</h3><p>Try adjusting your filters or search terms.</p></div>`;return;}
   el.innerHTML=books.map(bookCard).join('');
-}
-
-// ================================================================
-// PAGE NAVIGATION
-// ================================================================
-function goPage(page){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById('page-'+page).classList.add('active');
-  document.querySelectorAll('.nav-links a').forEach(a=>a.classList.toggle('active',a.dataset.page===page));
-  if(page==='catalog'){initFilterBar();if(FS.genre!=='All'||FS.priceMax<30||FS.rating>0||FS.search)applyFilters();else renderGrid('catalogGrid',DB.join());}
-  if(page==='arrivals')renderArrivals();
-  if(page==='bestsellers')renderBestsellers();
-  if(page==='wishlist')renderWishlistPage();
-  if(page==='orders')renderOrdersPage();
-  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function goWithFilter(page,genre){FS.genre=genre;goPage(page);}
@@ -1800,49 +1704,73 @@ function goWithFilter(page,genre){FS.genre=genre;goPage(page);}
 // ================================================================
 // HOME PAGE
 // ================================================================
-function initHome(){
-  // Hero books — SELECT * FROM products LIMIT 3 (specific picks)
-  const picks=DB.join().filter((_,i)=>[7,0,2].includes(i));
-  document.getElementById('heroVisual').innerHTML=picks.map((b,i)=>`
-    <div class="hero-book-card" style="transform:rotate(${[-3,0,2][i]}deg);margin-bottom:${[0,28,8][i]}px" onclick="openPreview(${b.id})">
-      <div class="hbc-inner" style="background:${b.bg};width:${[108,128,106][i]}px;height:${[162,192,158][i]}px">
-        <div style="font-family:'Playfair Display',serif;font-size:${[10,12,10][i]}px;color:white;font-weight:700;line-height:1.3;text-shadow:0 1px 4px rgba(0,0,0,.4);position:relative;z-index:1">${b.title}</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.7);position:relative;z-index:1">${b.author}</div>
-      </div>
-    </div>`).join('');
+const GenreMeta = {
+  'Fiction':     {icon:'&#x1F4D6;',bg:'#0E2040'},
+  'Non-Fiction': {icon:'&#x1F4A1;',bg:'#2E1C08'},
+  'Science':     {icon:'&#x1F52C;',bg:'#0E2A1A'},
+  'History':     {icon:'&#x1F3DB;&#xFE0F;',bg:'#381010'},
+  'Philosophy':  {icon:'&#x1F914;',bg:'#1A1A1A'},
+  'Mystery':     {icon:'&#x1F575;&#xFE0F;',bg:'#101830'},
+  'Biography':   {icon:'&#x1F3AD;',bg:'#220E32'},
+  'Self-Help':   {icon:'&#x1F331;',bg:'#0E2214'},
+  'Professional':{icon:'&#x1F4BC;',bg:'#1A2E45'},
+  'Default':     {icon:'&#x1F4D6;',bg:'#5D8AA8'}
+};
 
-  // Category cards — SELECT * FROM categories + COUNT products per category
-  document.getElementById('homeCatGrid').innerHTML=DB.categories.map(c=>{
-    const cnt=DB.query('products',{catId:c.id}).length;
-    return`<div class="cat-card" style="background:${c.bg};color:white" onclick="goWithFilter('catalog','${c.name}')">
-      <div class="cat-icon">${c.icon}</div>
-      <div class="cat-name">${c.name}</div>
-      <div class="cat-count">${cnt} books</div>
-    </div>`;
-  }).join('');
+async function initHome(){
+  try {
+    const [booksRes, genreRes] = await Promise.all([
+      apiFetch('/books?sort=rating&order=DESC&limit=8'),
+      apiFetch('/books/genres')
+    ]);
 
-  // Featured — SELECT * FROM products JOIN categories ORDER BY rating DESC LIMIT 8
-  renderGrid('homeGrid',DB.join().sort((a,b)=>b.rating-a.rating).slice(0,8));
+    // Hero visual
+    if(booksRes.success && booksRes.data.length >= 3) {
+      const picks = booksRes.data.slice(0, 3);
+      document.getElementById('heroVisual').innerHTML=picks.map((b,i)=>`
+        <div class="hero-book-card" style="transform:rotate(${[-3,0,2][i]}deg);margin-bottom:${[0,28,8][i]}px" onclick="openPreview(${b.id})">
+          <div class="hbc-inner" style="background:${b.cover_color};width:${[108,128,106][i]}px;height:${[162,192,158][i]}px">
+            <div style="font-family:'Playfair Display',serif;font-size:${[10,12,10][i]}px;color:white;font-weight:700;line-height:1.3;text-shadow:0 1px 4px rgba(0,0,0,.4);position:relative;z-index:1">${sanitize(b.title)}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.7);position:relative;z-index:1">${sanitize(b.author)}</div>
+          </div>
+        </div>`).join('');
+    }
 
-  // New arrivals — SELECT * FROM products WHERE newArrival=1
-  renderGrid('homeArrivalsGrid',DB.join({newArrival:true}));
+    // Categories
+    if(genreRes.success) {
+      document.getElementById('homeCatGrid').innerHTML = genreRes.data.map(g => {
+        const meta = GenreMeta[g.genre] || GenreMeta.Default;
+        return `<div class="cat-card" style="background:${meta.bg};color:white" onclick="goWithFilter('catalog','${g.genre}')">
+          <div class="cat-icon">${meta.icon}</div>
+          <div class="cat-name">${g.genre}</div>
+          <div class="cat-count">${g.count} books</div>
+        </div>`;
+      }).join('');
+    }
+
+    // Grids
+    if(booksRes.success) renderGrid('homeGrid', booksRes.data);
+    
+    // New Arrivals
+    apiFetch('/books?badge=NEW&limit=8').then(r => {
+      if(r.success) renderGrid('homeArrivalsGrid', r.data);
+    });
+
+  } catch(e) { console.error('Init home failed', e); }
 }
 
-// ================================================================
-// CATALOG FILTER ENGINE
-// Equivalent SQL: SELECT p.*, c.name AS genre FROM products p
-//   LEFT JOIN categories c ON p.catId=c.id
-//   WHERE c.name=? AND p.price<=? AND p.rating>=?
-//   AND (p.title LIKE ? OR p.author LIKE ?)
-//   ORDER BY ? LIMIT ?
-// ================================================================
-function initFilterBar(){
-  const genres=['All',...DB.categories.map(c=>c.name)];
-  document.getElementById('genreChips').innerHTML=genres.map(g=>
-    `<button class="filter-chip${g===FS.genre?' active':''}" onclick="setGenre('${g}',this)">${g}</button>`
-  ).join('');
+async function initFilterBar(){
+  try {
+    const res = await apiFetch('/books/genres');
+    if(res.success) {
+      const genres = ['All', ...res.data.map(g => g.genre)];
+      document.getElementById('genreChips').innerHTML=genres.map(g=>
+        `<button class="filter-chip${g===FS.genre?' active':''}" onclick="setGenre('${g}',this)">${g}</button>`
+      ).join('');
+    }
+  } catch(e) {}
   document.getElementById('priceSlider').value=FS.priceMax;
-  document.getElementById('priceMax').textContent='$'+FS.priceMax;
+  document.getElementById('priceMax').textContent=fmt(FS.priceMax);
   document.getElementById('sortSelect').value=FS.sort;
   document.getElementById('ratingFilter').value=String(FS.rating);
 }
@@ -1867,19 +1795,25 @@ function applyAndCollapse(){
   applyFilters();
 }
 
-function applyFilters(){
-  let res=DB.join();
-  if(FS.genre!=='All')res=res.filter(b=>b.genre===FS.genre);
-  res=res.filter(b=>b.price<=FS.priceMax);
-  if(FS.rating>0)res=res.filter(b=>b.rating>=FS.rating);
-  if(FS.search.trim().length>=2){
-    const q=FS.search.toLowerCase();
-    res=res.filter(b=>b.title.toLowerCase().includes(q)||b.author.toLowerCase().includes(q)||b.genre.toLowerCase().includes(q));
-  }
-  const sorts={'price-asc':(a,b)=>a.price-b.price,'price-desc':(a,b)=>b.price-a.price,'rating':(a,b)=>b.rating-a.rating,'reviews':(a,b)=>b.reviews-a.reviews,'newest':(a,b)=>b.year-a.year,'default':()=>0};
-  res.sort(sorts[FS.sort]||sorts.default);
-  renderGrid('catalogGrid',res);
-  updateActiveTags(res.length);
+async function applyFilters(){
+  const params = new URLSearchParams();
+  if(FS.genre !== 'All') params.append('genre', FS.genre);
+  params.append('maxPrice', FS.priceMax);
+  if(FS.rating > 0) params.append('minRating', FS.rating);
+  if(FS.search.trim().length >= 2) params.append('q', FS.search);
+  
+  const sortMap = {'price-asc':'price','price-desc':'price','rating':'rating','reviews':'reviews_count','newest':'created_at','default':'id'};
+  params.append('sort', sortMap[FS.sort] || 'id');
+  params.append('order', FS.sort.includes('desc') ? 'DESC' : (FS.sort==='rating'||FS.sort==='reviews'||FS.sort==='newest'?'DESC':'ASC'));
+  params.append('limit', 20);
+
+  try {
+    const res = await apiFetch(`/books?${params.toString()}`);
+    if(res.success) {
+      renderGrid('catalogGrid', res.data);
+      updateActiveTags(res.meta?.total || res.data.length);
+    }
+  } catch(e) { console.error('Apply filters failed', e); }
 }
 
 function updateActiveTags(count){
@@ -1933,24 +1867,34 @@ function liveSearch(val){
 // ================================================================
 // ARRIVALS & BESTSELLERS
 // ================================================================
-function renderArrivals(){renderGrid('arrivalsGrid',DB.join({newArrival:true}));}
-function renderBestsellers(){
-  const sorted=DB.join().sort((a,b)=>b.reviews-a.reviews);
-  document.getElementById('bsList').innerHTML=sorted.map((b,i)=>`
+async function renderArrivals(){
+  try {
+    const res = await apiFetch('/books?badge=NEW&limit=16');
+    if(res.success) renderGrid('arrivalsGrid', res.data);
+  } catch(e){}
+}
+async function renderBestsellers(){
+  const el = document.getElementById('bsList'); if(!el) return;
+  try {
+    const res = await apiFetch('/books?sort=reviews_count&order=DESC&limit=10');
+    if(res.success) {
+      el.innerHTML=res.data.map((b,i)=>`
     <div class="bs-row" onclick="openPreview(${b.id})">
       <div class="bs-rank${i<3?' gold':''}">#${i+1}</div>
-      <div class="bs-cover" style="background:${b.bg}">
-        <div style="font-size:7px;font-weight:700;color:white;line-height:1.2;position:relative;z-index:1">${b.title}</div>
-        <div style="font-size:6px;color:rgba(255,255,255,.7);position:relative;z-index:1">${b.author}</div>
+      <div class="bs-cover" style="background:${b.cover_color}">
+        <div style="font-size:7px;font-weight:700;color:white;line-height:1.2;position:relative;z-index:1">${sanitize(b.title)}</div>
+        <div style="font-size:6px;color:rgba(255,255,255,.7);position:relative;z-index:1">${sanitize(b.author)}</div>
       </div>
       <div class="bs-info">
-        <div class="bs-title">${b.title}</div>
-        <div class="bs-author">${b.author}</div>
-        <div class="bs-meta"><span class="stars" style="font-size:12px">${stars(b.rating)}</span><span style="font-size:12px;color:var(--mid-brown)">(${b.reviews.toLocaleString()})</span>${badgeHTML(b.badge)}</div>
+        <div class="bs-title">${sanitize(b.title)}</div>
+        <div class="bs-author">${sanitize(b.author)}</div>
+        <div class="bs-meta"><span class="stars" style="font-size:12px">${stars(b.rating)}</span><span style="font-size:12px;color:var(--mid-brown)">(${b.reviews_count.toLocaleString()})</span>${badgeHTML(b.badge)}</div>
       </div>
-      <div class="bs-price">$${b.price.toFixed(2)}</div>
+      <div class="bs-price">${fmt(b.price)}</div>
       <button class="bs-add" onclick="event.stopPropagation();addToCart(${b.id})">+</button>
     </div>`).join('');
+    }
+  } catch(e){}
 }
 
 // ================================================================
@@ -2897,7 +2841,7 @@ async function submitReview(){
 // ================================================================
 // STOCK HELPERS
 // ================================================================
-function getStock(id){const b=DB.findProduct(id);return b?(b.stock??99):0;}
+// getStock removed - stock handled in book details or cards
 function stockStatusHTML(stock){
   if(stock===0)return'<span class="stock-label out">Out of Stock</span>';
   if(stock<=5)return`<span class="stock-label low">Only ${stock} left!</span>`;
@@ -3383,13 +3327,13 @@ function bookCard(b){
   const badgePart=out?'<span class="book-badge badge-out-of-stock">Out of Stock</span>':low?`<span class="book-badge badge-low-stock">Only ${stock} left</span>`:badgeHTML(b.badge);
   const addBtn=out?`<button class="add-btn" disabled style="background:#9e9e9e;cursor:not-allowed" title="Out of stock">—</button>`:`<button class="add-btn" onclick="event.stopPropagation();addToCart(${b.id})">+</button>`;
   return`<div class="book-card${out?' out-of-stock':''}" onclick="openPreview(${b.id})">
-    <div class="bcc" style="background:${b.bg}">${badgePart}<div class="bcc-title">${b.title}</div><div class="bcc-author">${b.author}</div></div>
+    <div class="bcc" style="background:${b.cover_color||'#2C3E50'}">${badgePart}<div class="bcc-title">${sanitize(b.title)}</div><div class="bcc-author">${sanitize(b.author)}</div></div>
     <div>
-      <div class="book-title">${b.title}</div>
-      <div class="book-author">${b.author}</div>
-      <div class="book-rating"><span class="stars">${stars(b.rating)}</span><span class="rcount">(${b.reviews.toLocaleString()})</span></div>
+      <div class="book-title">${sanitize(b.title)}</div>
+      <div class="book-author">${sanitize(b.author)}</div>
+      <div class="book-rating"><span class="stars">${stars(b.rating)}</span><span class="rcount">(${b.reviews_count.toLocaleString()})</span></div>
       <div class="book-price-row">
-        <div><span class="price">${fmt(b.price)}</span>${b.oldPrice?`<span class="price-old">${fmt(b.oldPrice)}</span>`:''}</div>
+        <div><span class="price">${fmt(b.price)}</span>${b.original_price?`<span class="price-old">${fmt(b.original_price)}</span>`:''}</div>
         ${addBtn}
       </div>
       ${stockStatusHTML(stock)}
@@ -3401,35 +3345,50 @@ function bookCard(b){
 // PATCH: openPreview — stock + recently viewed + related + reviews
 // ================================================================
 const _origOpenPreview=openPreview;
-function openPreview(id){
-  const b=DB.findProduct(id);if(!b)return;
+async function openPreview(id){
   prevId=id;
-  addRecentlyViewed(id);
-  document.getElementById('prevArt').style.background=b.bg;
-  document.getElementById('prevArtTitle').textContent=b.title;
-  document.getElementById('prevArtAuthor').textContent=b.author;
-  document.getElementById('prevGenre').textContent=b.genre;
-  document.getElementById('prevTitle').textContent=b.title;
-  document.getElementById('prevAuthor').textContent='by '+b.author;
-  document.getElementById('prevStars').textContent=stars(b.rating);
-  document.getElementById('prevRatingNum').textContent=b.rating.toFixed(1);
-  document.getElementById('prevRatingCnt').textContent='('+b.reviews.toLocaleString()+' reviews)';
-  document.getElementById('prevPages').textContent=b.pages;
-  document.getElementById('prevPub').textContent=b.publisher;
-  document.getElementById('prevYear').textContent=b.year;
-  document.getElementById('prevDesc').textContent=b.desc;
-  document.getElementById('prevPrice').textContent=fmt(b.price);
-  const oe=document.getElementById('prevOld'),se=document.getElementById('prevSave');
-  if(b.oldPrice){oe.textContent=fmt(b.oldPrice);oe.style.display='';se.textContent='Save '+Math.round((1-b.price/b.oldPrice)*100)+'%';se.style.display='';}
-  else{oe.style.display='none';se.style.display='none';}
-  const stock=b.stock??99;const addBtn=document.querySelector('.prev-add');
-  if(addBtn){if(stock===0){addBtn.disabled=true;addBtn.style.background='#9e9e9e';addBtn.style.cursor='not-allowed';addBtn.textContent='Out of Stock';}else{addBtn.disabled=false;addBtn.style.background='';addBtn.style.cursor='';addBtn.innerHTML='&#x1F6D2; Add to Cart';}}
   document.getElementById('prevBg').classList.add('open');
   document.getElementById('prevBox').classList.add('open');
   document.body.style.overflow='hidden';
-  updateWishBtn(id);
-  renderRelatedBooks(id);
-  renderPreviewReviews(id);
+  
+  // Show skeleton or clear previous
+  document.getElementById('prevTitle').textContent='Loading...';
+  
+  try {
+    const res = await apiFetch(`/books/${id}`);
+    if(!res.success) throw new Error(res.message);
+    const b = res.data;
+    
+    addRecentlyViewed(id);
+    document.getElementById('prevArt').style.background=b.cover_color;
+    document.getElementById('prevArtTitle').textContent=b.title;
+    document.getElementById('prevArtAuthor').textContent=b.author;
+    document.getElementById('prevGenre').textContent=b.genre;
+    document.getElementById('prevTitle').textContent=b.title;
+    document.getElementById('prevAuthor').textContent='by '+b.author;
+    document.getElementById('prevStars').textContent=stars(b.rating);
+    document.getElementById('prevRatingNum').textContent=parseFloat(b.rating).toFixed(1);
+    document.getElementById('prevRatingCnt').textContent='('+b.reviews_count.toLocaleString()+' reviews)';
+    document.getElementById('prevPages').textContent=b.pages || '—';
+    document.getElementById('prevPub').textContent=b.publisher || '—';
+    document.getElementById('prevYear').textContent=b.year || '—';
+    document.getElementById('prevDesc').textContent=b.description;
+    document.getElementById('prevPrice').textContent=fmt(b.price);
+    
+    const oe=document.getElementById('prevOld'),se=document.getElementById('prevSave');
+    if(b.original_price){oe.textContent=fmt(b.original_price);oe.style.display='';se.textContent='Save '+Math.round((1-b.price/b.original_price)*100)+'%';se.style.display='';}
+    else{oe.style.display='none';se.style.display='none';}
+    
+    const stock=b.stock??0;const addBtn=document.querySelector('.prev-add');
+    if(addBtn){if(stock===0){addBtn.disabled=true;addBtn.style.background='#9e9e9e';addBtn.style.cursor='not-allowed';addBtn.textContent='Out of Stock';}else{addBtn.disabled=false;addBtn.style.background='';addBtn.style.cursor='';addBtn.innerHTML='&#x1F6D2; Add to Cart';}}
+    
+    updateWishBtn(id);
+    renderRelatedBooks(id, b.related); 
+    renderPreviewReviews(id, b.reviews);
+  } catch(e) {
+    showToast(e.message, 'error');
+    closePreview();
+  }
 }
 
 // ================================================================
@@ -3441,16 +3400,21 @@ function saveCart(){try{sessionStorage.setItem(cartKey(),JSON.stringify(cart));}
 function loadCart(){try{const s=sessionStorage.getItem(cartKey());cart=s?JSON.parse(s):[];}catch(e){cart=[];}updateCartUI();}
 function clearCart(){cart=[];appliedCoupon=null;try{sessionStorage.removeItem(cartKey());}catch(e){}updateCartUI();}
 
-function addToCart(id){
+async function addToCart(id){
   if(!requireLogin('add items to cart'))return;
-  const b=DB.findProduct(id);if(!b)return;
-  if((b.stock??99)===0){showToast('"'+b.title+'" is out of stock');return;}
-  const ex=cart.find(i=>i.id===id);
-  const cur=ex?ex.qty:0;
-  if(cur>=(b.stock??99)){showToast('Only '+b.stock+' available');return;}
-  if(ex)ex.qty++;else cart.push({...b,qty:1});
-  saveCart();updateCartUI();
-  showToast('"'+b.title+'" added to cart');
+  try {
+    const res = await apiFetch(`/books/${id}`);
+    if(!res.success) throw new Error(res.message);
+    const b = res.data;
+    
+    if((b.stock??0)===0){showToast('"'+b.title+'" is out of stock');return;}
+    const ex=cart.find(i=>i.id===id);
+    const cur=ex?ex.qty:0;
+    if(cur>=(b.stock??0)){showToast('Only '+b.stock+' available');return;}
+    if(ex)ex.qty++;else cart.push({...b,qty:1});
+    saveCart();updateCartUI();
+    showToast('"'+b.title+'" added to cart');
+  } catch(e) { showToast(e.message, 'error'); }
 }
 
 // ================================================================
