@@ -1315,7 +1315,10 @@ body.guest .cover-gate-banner { display: flex; }
       <h2 class="section-title">Admin Panel <em>⚙️</em></h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="nav-jump-btn" onclick="adminTab('orders')" id="atab-orders" style="background:var(--cta);color:white;border-color:var(--cta)">📦 Orders</button>
+        <button class="nav-jump-btn" onclick="adminTab('books')" id="atab-books">📚 Books</button>
         <button class="nav-jump-btn" onclick="adminTab('users')" id="atab-users">👤 Users</button>
+        <button class="nav-jump-btn" onclick="adminTab('coupons')" id="atab-coupons">🏷️ Coupons</button>
+        <button class="nav-jump-btn" onclick="adminTab('subs')" id="atab-subs">📧 Subs</button>
         <button class="nav-jump-btn" onclick="adminTab('logs')" id="atab-logs">🛡️ Logs</button>
         <button class="nav-jump-btn" onclick="adminTab('stats')" id="atab-stats">📊 Stats</button>
       </div>
@@ -1338,7 +1341,21 @@ body.guest .cover-gate-banner { display: flex; }
       </div>
       <div id="adminOrdersTable"></div>
     </div>
+    <div id="admin-books" class="admin-tab-content" style="display:none">
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+        <input type="text" id="adminBookSearch" placeholder="Search title or author..." class="coupon-input" style="flex:1;min-width:200px" oninput="renderAdminBooks()">
+        <button class="btn-primary" style="padding:10px 18px" onclick="openAddBookModal()">+ Add New Book</button>
+      </div>
+      <div id="adminBooksTable"></div>
+    </div>
     <div id="admin-users" class="admin-tab-content" style="display:none"><div id="adminUsersTable"></div></div>
+    <div id="admin-coupons" class="admin-tab-content" style="display:none">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+        <button class="btn-primary" style="padding:10px 18px" onclick="openAddCouponModal()">+ Create Coupon</button>
+      </div>
+      <div id="adminCouponsTable"></div>
+    </div>
+    <div id="admin-subs" class="admin-tab-content" style="display:none"><div id="adminSubsTable"></div></div>
     <div id="admin-logs" class="admin-tab-content" style="display:none">
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
         <select id="logFilter" class="sort-select" onchange="renderSecurityLogs()">
@@ -3133,14 +3150,17 @@ function goPageAdmin(){
 }
 function adminTab(tab){
   _adminTab=tab;
-  ['orders','users','logs','stats'].forEach(t=>{
+  ['orders','books','users','coupons','subs','logs','stats'].forEach(t=>{
     const btn=document.getElementById('atab-'+t);if(!btn)return;
     const a=t===tab;btn.style.background=a?'var(--cta)':'';btn.style.color=a?'white':'';btn.style.borderColor=a?'var(--cta)':'';
   });
   document.querySelectorAll('.admin-tab-content').forEach(el=>el.style.display='none');
   const panel=document.getElementById('admin-'+tab);if(panel)panel.style.display='';
   if(tab==='orders')renderAdminOrders();
+  if(tab==='books')renderAdminBooks();
   if(tab==='users')renderAdminUsers();
+  if(tab==='coupons')renderAdminCoupons();
+  if(tab==='subs')renderAdminSubscribers();
   if(tab==='logs')renderSecurityLogs();
   if(tab==='stats')renderAdminStats();
 }
@@ -3185,9 +3205,101 @@ async function renderAdminUsers(){
   try {
     const res = await apiFetch('/admin/users');
     const users = res.data;
-    el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Orders</th><th>Registered</th></tr></thead><tbody>
-    ${users.map(a=>`<tr><td style="font-weight:500">${a.name||'—'}</td><td>${a.email}</td><td><span class="status-badge ${a.role==='admin'?'status-shipped':'status-confirmed'}">${a.role}</span></td><td>${a.order_count}</td><td style="font-size:12px">${new Date(a.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table></div>`;
+    el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Registered</th></tr></thead><tbody>
+    ${users.map(a=>`<tr><td style="font-weight:500">${sanitize(a.name)||'—'}</td><td>${sanitize(a.email)}</td><td><span class="status-badge ${a.role==='admin'?'status-shipped':'status-confirmed'}">${a.role}</span></td><td><span class="status-badge ${a.is_active?'status-delivered':'status-cancelled'}">${a.is_active?'Active':'Inactive'}</span></td><td style="font-size:12px">${new Date(a.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table></div>`;
   } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
+}
+async function renderAdminBooks(){
+  const el=document.getElementById('adminBooksTable');if(!el)return;
+  const q = document.getElementById('adminBookSearch')?.value || '';
+  try {
+    const res = await apiFetch(`/admin/books?q=${encodeURIComponent(q)}`);
+    const books = res.data;
+    el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Cover</th><th>Title & Author</th><th>Genre</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    ${books.map(b=>`<tr>
+      <td><div style="width:30px;height:40px;background:${b.cover_color||'#ddd'};border-radius:3px"></div></td>
+      <td><div style="font-weight:500">${sanitize(b.title)}</div><div style="font-size:11px;color:var(--mid-brown)">${sanitize(b.author)}</div></td>
+      <td style="font-size:12px">${b.genre}</td>
+      <td style="font-weight:600">${fmt(b.price)}</td>
+      <td style="color:${b.stock<=5?'var(--accent)':'inherit'}">${b.stock}</td>
+      <td><span class="status-badge ${b.is_active?'status-confirmed':'status-cancelled'}" style="cursor:pointer" onclick="toggleBookStatus(${b.id}, ${!b.is_active})">${b.is_active?'Active':'Hidden'}</span></td>
+      <td><button class="rm-btn" onclick="deleteBookAdmin(${b.id})" title="Delete book">&#x2715;</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+  } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
+}
+async function toggleBookStatus(id, active){
+  try {
+    const res = await apiFetch(`/admin/books/${id}`, { method:'PUT', body:JSON.stringify({ is_active:active }) });
+    if(res.success) { showToast(`Book ${active?'enabled':'hidden'}`); renderAdminBooks(); }
+  } catch(e) { showToast(e.message, 'error'); }
+}
+async function deleteBookAdmin(id){
+  if(!confirm('Are you sure you want to remove this book from the catalog?')) return;
+  try {
+    const res = await apiFetch(`/admin/books/${id}`, { method:'DELETE' });
+    if(res.success) { showToast('Book removed.'); renderAdminBooks(); }
+  } catch(e) { showToast(e.message, 'error'); }
+}
+async function renderAdminCoupons(){
+  const el=document.getElementById('adminCouponsTable');if(!el)return;
+  try {
+    const res = await apiFetch('/admin/coupons');
+    const coupons = res.data;
+    el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Min Order</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    ${coupons.map(c=>`<tr>
+      <td><code style="font-size:13px;font-weight:700">${c.code}</code></td>
+      <td style="text-transform:capitalize">${c.type}</td>
+      <td style="font-weight:600">${c.type==='percent'?c.value+'%':fmt(c.value)}</td>
+      <td>${fmt(c.min_order)}</td>
+      <td><span class="status-badge ${c.is_active?'status-confirmed':'status-cancelled'}">${c.is_active?'Active':'Disabled'}</span></td>
+      <td><button class="rm-btn" onclick="deleteCouponAdmin(${c.id})">&#x2715;</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+  } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
+}
+async function deleteCouponAdmin(id){
+  if(!confirm('Deactivate this coupon?')) return;
+  try {
+    const res = await apiFetch(`/admin/coupons/${id}`, { method:'DELETE' });
+    if(res.success) { showToast('Coupon deactivated.'); renderAdminCoupons(); }
+  } catch(e) { showToast(e.message, 'error'); }
+}
+async function renderAdminSubscribers(){
+  const el=document.getElementById('adminSubsTable');if(!el)return;
+  try {
+    const res = await apiFetch('/admin/subscribers');
+    const subs = res.data;
+    el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Email</th><th>Source</th><th>Joined</th></tr></thead><tbody>
+    ${subs.map(s=>`<tr><td style="font-weight:500">${sanitize(s.email)}</td><td>${s.source}</td><td style="font-size:12px">${new Date(s.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table></div>`;
+  } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
+}
+function openAddBookModal(){document.getElementById('addBookModal').classList.add('open');}
+function closeAddBookModal(){document.getElementById('addBookModal').classList.remove('open');}
+async function submitAddBook(){
+  const title=document.getElementById('abTitle').value;
+  const author=document.getElementById('abAuthor').value;
+  const genre=document.getElementById('abGenre').value;
+  const price=parseFloat(document.getElementById('abPrice').value);
+  const stock=parseInt(document.getElementById('abStock').value);
+  const cover_color=document.getElementById('abColor').value;
+  const description=document.getElementById('abDesc').value;
+  if(!title||!author||!genre||isNaN(price)||isNaN(stock)){showToast('Please fill all required fields','error');return;}
+  try {
+    const res=await apiFetch('/admin/books',{method:'POST',body:JSON.stringify({title,author,genre,price,stock,cover_color,description})});
+    if(res.success){showToast('Book added successfully!');closeAddBookModal();renderAdminBooks();}
+  } catch(e){showToast(e.message,'error');}
+}
+function openAddCouponModal(){document.getElementById('addCouponModal').classList.add('open');}
+function closeAddCouponModal(){document.getElementById('addCouponModal').classList.remove('open');}
+async function submitAddCoupon(){
+  const code=document.getElementById('acCode').value.trim().toUpperCase();
+  const type=document.getElementById('acType').value;
+  const value=parseFloat(document.getElementById('acValue').value);
+  const min_order=parseFloat(document.getElementById('acMin').value)||0;
+  if(!code||isNaN(value)){showToast('Please fill all required fields','error');return;}
+  try {
+    const res=await apiFetch('/admin/coupons',{method:'POST',body:JSON.stringify({code,type,value,min_order})});
+    if(res.success){showToast('Coupon created!');closeAddCouponModal();renderAdminCoupons();}
+  } catch(e){showToast(e.message,'error');}
 }
 async function renderAdminStats(){
   const el=document.getElementById('adminStatsGrid');if(!el)return;
@@ -3631,18 +3743,57 @@ function goPage(page){
 // ================================================================
 function getSubscribers(){try{return new Set(JSON.parse(localStorage.getItem('fs_subscribers')||'[]'));}catch(e){return new Set();}}
 function saveSubscriber(email){const s=getSubscribers();s.add(email);try{localStorage.setItem('fs_subscribers',JSON.stringify([...s]));}catch(e){}}
-function submitEmailCapture(){
+async function submitEmailCapture(){
   const inp=document.getElementById('emailCaptureInput');if(!inp)return;
   const email=inp.value.trim().toLowerCase();
   if(!email||!/[^\s@]+@[^\s@]+\.[^\s@]{2,}/.test(email)){
     inp.style.borderColor='#e53935';inp.style.boxShadow='0 0 0 3px rgba(229,57,53,.15)';
     setTimeout(()=>{inp.style.borderColor='';inp.style.boxShadow='';},2500);return;
   }
-  if(getSubscribers().has(email)){showToast('You are already subscribed!');return;}
-  saveSubscriber(email);inp.value='';
-  if(typeof API_BASE!=='undefined'&&API_BASE)fetch(API_BASE+'/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}).catch(()=>{});
-  showToast('Subscribed! Check your inbox for 10% off.');
+  try {
+    const res = await apiFetch('/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+    if(res.success){
+      showToast(res.message || 'Subscribed! Check your inbox.');
+      saveSubscriber(email);
+      inp.value='';
+    } else {
+      showToast(res.message || 'Subscription failed', 'error');
+    }
+  } catch(err) {
+    showToast(err.message || 'Failed to subscribe', 'error');
+  }
 }
+async function initSearchAutocomplete(){
+  const inp=document.getElementById('navSearch');if(!inp)return;
+  const suggestWrap=document.createElement('div');
+  suggestWrap.id='searchSuggest';suggestWrap.className='search-suggest-box';
+  inp.parentNode.style.position='relative';inp.parentNode.appendChild(suggestWrap);
+  let timer=null;
+  inp.addEventListener('input', ()=>{
+    clearTimeout(timer);
+    const q=inp.value.trim();
+    if(q.length<2){suggestWrap.classList.remove('open');return;}
+    timer=setTimeout(async()=>{
+      try {
+        const res=await apiFetch(`/books/suggest?q=${encodeURIComponent(q)}`);
+        if(res.success && res.data.length){
+          suggestWrap.innerHTML=res.data.map(b=>`<div class="suggest-item" onclick="openPreview(${b.id})">
+            <div style="width:20px;height:28px;background:${b.cover_color};border-radius:2px"></div>
+            <div><div class="s-title">${sanitize(b.title)}</div><div class="s-author">${sanitize(b.author)}</div></div>
+          </div>`).join('');
+          suggestWrap.classList.add('open');
+        } else { suggestWrap.classList.remove('open'); }
+      } catch(e){}
+    },300);
+  });
+  document.addEventListener('click',e=>{if(!inp.contains(e.target))suggestWrap.classList.remove('open');});
+}
+// Add search CSS
+(function(){const s=document.createElement('style');s.textContent=`.search-suggest-box{position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 12px 12px;box-shadow:0 10px 30px rgba(0,0,0,.1);z-index:1000;max-height:300px;overflow-y:auto;display:none;margin-top:2px}.search-suggest-box.open{display:block}.suggest-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .2s}.suggest-item:hover{background:var(--warm-white)}.s-title{font-size:13px;font-weight:600}.s-author{font-size:11px;color:var(--mid-brown)}`;document.head.appendChild(s);})();
+initSearchAutocomplete();
 
 // ================================================================
 // INIT CURRENCY on startup
@@ -3812,29 +3963,36 @@ refreshCaptcha('reg');
   </div>
 </div>
 
-<!-- RETURN REQUEST MODAL -->
-<div class="overlay-modal" id="returnModal">
-  <div class="overlay-modal-bg" onclick="closeReturnModal()"></div>
+<!-- ADD BOOK MODAL -->
+<div class="overlay-modal" id="addBookModal">
+  <div class="overlay-modal-bg" onclick="closeAddBookModal()"></div>
+  <div class="overlay-modal-box" style="max-width:600px">
+    <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:14px">Add New Book</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group"><label>Title*</label><input type="text" id="abTitle" class="auth-input"></div>
+      <div class="form-group"><label>Author*</label><input type="text" id="abAuthor" class="auth-input"></div>
+      <div class="form-group"><label>Genre*</label><input type="text" id="abGenre" class="auth-input"></div>
+      <div class="form-group"><label>Price*</label><input type="number" id="abPrice" class="auth-input" step="0.01"></div>
+      <div class="form-group"><label>Stock*</label><input type="number" id="abStock" class="auth-input"></div>
+      <div class="form-group"><label>Cover Color</label><input type="color" id="abColor" class="auth-input" value="#2C3E50" style="padding:4px;height:40px"></div>
+    </div>
+    <div class="form-group" style="margin-top:12px"><label>Description</label><textarea id="abDesc" class="auth-input" style="min-height:80px"></textarea></div>
+    <button class="auth-submit" style="margin-top:16px" onclick="submitAddBook()">Create Book</button>
+  </div>
+</div>
+
+<!-- ADD COUPON MODAL -->
+<div class="overlay-modal" id="addCouponModal">
+  <div class="overlay-modal-bg" onclick="closeAddCouponModal()"></div>
   <div class="overlay-modal-box">
-    <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:6px">Request Return</h3>
-    <p style="font-size:13px;color:var(--mid-brown);margin-bottom:16px">Returns accepted within 30 days of delivery.</p>
-    <div id="returnOrderInfo" style="background:var(--cream);border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px"></div>
-    <div class="form-group">
-      <label style="font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--mid-brown)">Reason for Return</label>
-      <select id="returnReason" style="width:100%;padding:10px 14px;border:1px solid var(--border-strong);border-radius:8px;font-family:var(--font-body);font-size:14px;background:var(--cream);outline:none;margin-top:5px;box-sizing:border-box">
-        <option value="">Select reason...</option>
-        <option value="damaged">Item arrived damaged</option>
-        <option value="wrong">Wrong item received</option>
-        <option value="not_as_described">Not as described</option>
-        <option value="changed_mind">Changed my mind</option>
-        <option value="duplicate">Ordered by mistake</option>
-      </select>
+    <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:14px">Create Coupon</h3>
+    <div class="form-group"><label>Code*</label><input type="text" id="acCode" class="auth-input" placeholder="SAVE20" style="text-transform:uppercase"></div>
+    <div class="form-row" style="margin-top:12px">
+      <div class="form-group"><label>Type</label><select id="acType" class="sort-select" style="width:100%"><option value="percent">Percent</option><option value="flat">Flat Amount</option></select></div>
+      <div class="form-group"><label>Value*</label><input type="number" id="acValue" class="auth-input"></div>
     </div>
-    <div class="form-group" style="margin-top:12px">
-      <label style="font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--mid-brown)">Additional Comments</label>
-      <textarea id="returnComments" style="width:100%;padding:10px 14px;border:1px solid var(--border-strong);border-radius:8px;font-family:var(--font-body);font-size:13px;resize:vertical;min-height:80px;margin-top:5px;background:var(--cream);outline:none;box-sizing:border-box" placeholder="Optional details..."></textarea>
-    </div>
-    <button class="auth-submit" style="margin-top:14px" onclick="submitReturn()">Submit Return Request</button>
+    <div class="form-group" style="margin-top:12px"><label>Min Order</label><input type="number" id="acMin" class="auth-input" value="0"></div>
+    <button class="auth-submit" style="margin-top:20px" onclick="submitAddCoupon()">Create Coupon</button>
   </div>
 </div>
 

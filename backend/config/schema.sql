@@ -179,6 +179,19 @@ CREATE TABLE IF NOT EXISTS email_subscribers (
   INDEX idx_email (email)
 ) ENGINE=InnoDB;
 
+-- ─── SUPPORT TICKETS ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name       VARCHAR(120) NOT NULL,
+  email      VARCHAR(180) NOT NULL,
+  subject    VARCHAR(200) NOT NULL,
+  message    TEXT         NOT NULL,
+  status     ENUM('open', 'closed', 'resolved') DEFAULT 'open',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  INDEX idx_email (email)
+) ENGINE=InnoDB;
+
 -- ─── REFRESH TOKENS ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
