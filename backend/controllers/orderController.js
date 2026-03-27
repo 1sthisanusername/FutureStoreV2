@@ -16,10 +16,10 @@ const placeOrder = async (req, res) => {
 
     let subtotal=0; const enriched=[];
     for (const item of items) {
-      const r = await conn.query('SELECT id,price,stock,title FROM books WHERE id=$1 AND is_active=true', [item.id]);
+      const r = await conn.query('SELECT id,price,stock,title FROM books WHERE id=$1 AND is_active=true FOR UPDATE', [item.id]);
       const book = r.rows[0];
       if (!book) throw new Error(`Book #${item.id} not found.`);
-      if (book.stock < item.qty) throw new Error(`"${book.title}" only has ${book.stock} in stock.`);
+      if (book.stock < item.qty) throw Error(`"${book.title}" only has ${book.stock} in stock.`);
       subtotal += parseFloat(book.price) * item.qty;
       enriched.push({ ...book, qty: item.qty });
     }
