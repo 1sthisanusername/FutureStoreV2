@@ -80,6 +80,7 @@ router.get('/orders',
   ],
   validate, ctrl.adminGetOrders
 );
+router.get('/orders/:id', ctrl.adminGetOrderDetails);
 router.patch('/orders/:id/status',
   adminWriteLimiter,
   [

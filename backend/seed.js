@@ -5,16 +5,16 @@ const { v4: uuidv4 } = require('uuid');
 const pool   = require('./config/db');
 
 const books = [
-  { title: 'The Great Gatsby',        author: 'F. Scott Fitzgerald', genre: 'Fiction',    price: 12.99, original_price: 18.99, stock: 50, pages: 180, publisher: 'Scribner',        year: 1925, badge: 'CLASSIC',    cover_color: '#1a3a4a', rating: 4.2, reviews_count: 3200  },
-  { title: 'Sapiens',                 author: 'Yuval Noah Harari',   genre: 'History',    price: 16.99, original_price: 24.99, stock: 38, pages: 443, publisher: 'Harper',           year: 2011, badge: 'BESTSELLER', cover_color: '#8B4513', rating: 4.6, reviews_count: 18400 },
-  { title: 'Dune',                    author: 'Frank Herbert',        genre: 'Sci-Fi',     price: 14.99, original_price: null,  stock: 22, pages: 412, publisher: 'Ace Books',        year: 1965, badge: 'CLASSIC',    cover_color: '#B8860B', rating: 4.7, reviews_count: 9800  },
-  { title: 'Atomic Habits',           author: 'James Clear',          genre: 'Self-Help',  price: 18.99, original_price: 26.99, stock: 60, pages: 320, publisher: 'Avery',            year: 2018, badge: 'BESTSELLER', cover_color: '#2C5F2E', rating: 4.8, reviews_count: 42000 },
-  { title: 'The Alchemist',           author: 'Paulo Coelho',         genre: 'Fiction',    price: 11.99, original_price: 16.99, stock: 45, pages: 208, publisher: 'HarperOne',        year: 1988, badge: 'SALE',       cover_color: '#8B0000', rating: 4.5, reviews_count: 28000 },
-  { title: 'A Brief History of Time', author: 'Stephen Hawking',      genre: 'Science',    price: 15.49, original_price: 21.99, stock: 30, pages: 212, publisher: 'Bantam Books',      year: 1988, badge: null,         cover_color: '#003366', rating: 4.4, reviews_count: 12500 },
-  { title: 'The Midnight Library',    author: 'Matt Haig',            genre: 'Fiction',    price: 14.99, original_price: null,  stock: 18, pages: 304, publisher: 'Canongate',        year: 2020, badge: 'NEW',        cover_color: '#1a1a2e', rating: 4.3, reviews_count: 7800  },
-  { title: 'Thinking, Fast and Slow', author: 'Daniel Kahneman',      genre: 'Psychology', price: 17.99, original_price: 25.99, stock: 25, pages: 499, publisher: 'Farrar',           year: 2011, badge: null,         cover_color: '#4a235a', rating: 4.5, reviews_count: 15200 },
-  { title: 'The Art of War',          author: 'Sun Tzu',              genre: 'Philosophy', price: 8.99,  original_price: 12.99, stock: 70, pages: 68,  publisher: 'Penguin Classics', year: 500,  badge: 'CLASSIC',    cover_color: '#722f37', rating: 4.1, reviews_count: 5500  },
-  { title: '1984',                    author: 'George Orwell',        genre: 'Fiction',    price: 13.99, original_price: 18.99, stock: 55, pages: 328, publisher: 'Secker & Warburg', year: 1949, badge: 'CLASSIC',    cover_color: '#2c2c2c', rating: 4.7, reviews_count: 31000 },
+  { title: 'The Great Gatsby',        author: 'F. Scott Fitzgerald', genre: 'Fiction',    price: 12.99, original_price: 18.99, stock: 50, pages: 180, publisher: 'Scribner',        year: 1925, badge: 'CLASSIC',    cover_color: '#1a4a6e', rating: 4.2, reviews_count: 3200  },
+  { title: 'Sapiens',                 author: 'Yuval Noah Harari',   genre: 'History',    price: 16.99, original_price: 24.99, stock: 38, pages: 443, publisher: 'Harper',           year: 2011, badge: 'BESTSELLER', cover_color: '#a67c52', rating: 4.6, reviews_count: 18400 },
+  { title: 'Dune',                    author: 'Frank Herbert',        genre: 'Sci-Fi',     price: 14.99, original_price: null,  stock: 22, pages: 412, publisher: 'Ace Books',        year: 1965, badge: 'CLASSIC',    cover_color: '#d4af37', rating: 4.7, reviews_count: 9800  },
+  { title: 'Atomic Habits',           author: 'James Clear',          genre: 'Self-Help',  price: 18.99, original_price: 26.99, stock: 60, pages: 320, publisher: 'Avery',            year: 2018, badge: 'BESTSELLER', cover_color: '#3e7d48', rating: 4.8, reviews_count: 42000 },
+  { title: 'The Alchemist',           author: 'Paulo Coelho',         genre: 'Fiction',    price: 11.99, original_price: 16.99, stock: 45, pages: 208, publisher: 'HarperOne',        year: 1988, badge: 'SALE',       cover_color: '#c0392b', rating: 4.5, reviews_count: 28000 },
+  { title: 'A Brief History of Time', author: 'Stephen Hawking',      genre: 'Science',    price: 15.49, original_price: 21.99, stock: 30, pages: 212, publisher: 'Bantam Books',      year: 1988, badge: null,         cover_color: '#2980b9', rating: 4.4, reviews_count: 12500 },
+  { title: 'The Midnight Library',    author: 'Matt Haig',            genre: 'Fiction',    price: 14.99, original_price: null,  stock: 18, pages: 304, publisher: 'Canongate',        year: 2020, badge: 'NEW',        cover_color: '#2c3e50', rating: 4.3, reviews_count: 7800  },
+  { title: 'Thinking, Fast and Slow', author: 'Daniel Kahneman',      genre: 'Psychology', price: 17.99, original_price: 25.99, stock: 25, pages: 499, publisher: 'Farrar',           year: 2011, badge: null,         cover_color: '#8e44ad', rating: 4.5, reviews_count: 15200 },
+  { title: 'The Art of War',          author: 'Sun Tzu',              genre: 'Philosophy', price: 8.99,  original_price: 12.99, stock: 70, pages: 68,  publisher: 'Penguin Classics', year: 500,  badge: 'CLASSIC',    cover_color: '#d35400', rating: 4.1, reviews_count: 5500  },
+  { title: '1984',                    author: 'George Orwell',        genre: 'Fiction',    price: 13.99, original_price: 18.99, stock: 55, pages: 328, publisher: 'Secker & Warburg', year: 1949, badge: 'CLASSIC',    cover_color: '#34495e', rating: 4.7, reviews_count: 31000 },
 ];
 
 const coupons = [
@@ -31,20 +31,28 @@ async function seed() {
   await pool.query('ALTER TABLE books DROP CONSTRAINT IF EXISTS unique_title_author').catch(()=>{});
   await pool.query('DROP INDEX IF EXISTS unique_title_author').catch(()=>{});
   await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS unique_books_title_author ON books (title, author)');
-  await pool.query('TRUNCATE order_items, orders, wishlist, reviews, books RESTART IDENTITY CASCADE');
+  await pool.query('TRUNCATE order_items, orders, wishlist, reviews, books, users RESTART IDENTITY CASCADE');
 
   // Admin user
   const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@12345';
   const adminHash = await bcrypt.hash(adminPassword, 12);
   const adminEmail = (process.env.ADMIN_EMAIL || 'admin@futurestore.com').replace(/[';]/g, '');
 
-  await pool.query(
-    `INSERT INTO users (uuid, name, email, password_hash, role)
-     VALUES ($1, 'Admin', $2, $3, 'admin')
-     ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email, password_hash = EXCLUDED.password_hash`,
-    [uuidv4(), adminEmail, adminHash]
-  );
-  console.log('✅  Admin user ready:', adminEmail);
+  const existingAdmin = await pool.query('SELECT id FROM users WHERE email = $1', [adminEmail]);
+  if (existingAdmin.rows.length === 0) {
+    await pool.query(
+      `INSERT INTO users (uuid, name, email, password_hash, role)
+       VALUES ($1, 'Admin', $2, $3, 'admin')`,
+      [uuidv4(), adminEmail, adminHash]
+    );
+    console.log('✅  New Admin user created:', adminEmail);
+  } else {
+    await pool.query(
+      `UPDATE users SET password_hash = $1, role = 'admin' WHERE email = $2`,
+      [adminHash, adminEmail]
+    );
+    console.log('✅  Admin user updated:', adminEmail);
+  }
 
   // Books
   for (const b of books) {

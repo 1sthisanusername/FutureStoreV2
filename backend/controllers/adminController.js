@@ -171,6 +171,33 @@ const adminGetOrders = async (req, res) => {
   }
 };
 
+const adminGetOrderDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows: [order] } = await pool.query(
+      `SELECT o.*, u.name as customer_name, u.email as customer_email 
+       FROM orders o 
+       JOIN users u ON u.id = o.user_id 
+       WHERE o.id = $1`, 
+      [id]
+    );
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+    const { rows: items } = await pool.query(
+      `SELECT oi.*, b.title, b.author, b.cover_color, b.genre 
+       FROM order_items oi 
+       JOIN books b ON b.id = oi.book_id 
+       WHERE oi.order_id = $1`, 
+      [id]
+    );
+
+    res.json({ success: true, data: { ...order, items } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch order details.' });
+  }
+};
+
 const updateOrderStatus = async (req, res) => {
   const conn = await pool.connect();
   try {
@@ -280,7 +307,7 @@ module.exports = {
   getDashboard,
   adminGetBooks, createBook, updateBook, deleteBook,
   getInventory, updateStock,
-  adminGetOrders, updateOrderStatus,
+  adminGetOrders, adminGetOrderDetails, updateOrderStatus,
   getCoupons, createCoupon, deleteCoupon,
   adminGetUsers, toggleUserActive,
   getSubscribers,
