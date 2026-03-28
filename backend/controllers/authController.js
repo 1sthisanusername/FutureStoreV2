@@ -9,7 +9,11 @@ const { sendWelcome, sendPasswordReset, sendEmailVerification } = require('../se
 const { sendOTP, verifyOTP } = require('../services/smsService');
 
 const SALT_ROUNDS = 12;
-const COOKIE_OPTS = { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' };
+const COOKIE_OPTS = { 
+  httpOnly: true, 
+  sameSite: 'lax', 
+  secure: process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL.includes('localhost')
+};
 
 const setTokenCookies = (res, accessToken, refreshToken) => {
   res.cookie('token', accessToken, { ...COOKIE_OPTS, maxAge: 15 * 60 * 1000 });
