@@ -172,9 +172,11 @@ if (process.env.NODE_ENV !== 'test') {
 app.use((err, req, res, next) => {
   // Never leak stack traces or internal details in production
   if (process.env.NODE_ENV !== 'production') console.error('[ERROR]', err.stack);
+  // 🚨 EMERGENCY DEBUG: Reveal real error message on Railway
   res.status(err.status || 500).json({
     success: false,
-    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    message: err.message || 'Internal server error',
+    stack: err.stack
   });
 });
 
