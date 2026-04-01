@@ -3,7 +3,6 @@ require('dotenv').config();
 const express      = require('express');
 const helmet       = require('helmet');
 const cors         = require('cors');
-const cookieParser = require('cookie-parser');
 const session      = require('express-session');
 const morgan       = require('morgan');
 const path         = require('path');
@@ -71,9 +70,7 @@ app.use(cors({
 }));
 
 // ── Body parsers ──────────────────────────────────────────────────
-app.use(express.json({ limit: '512kb' }));    // 512 KB body limit (was 2 MB)
 app.use(express.urlencoded({ extended: true, limit: '512kb' }));
-app.use(cookieParser());
 
 // ── Session ───────────────────────────────────────────────────────
 let sessionStore;
@@ -91,6 +88,7 @@ if (process.env.NODE_ENV === 'production' && process.env.SESSION_SECRET === 'cha
 }
 
 app.use(session({
+  name: 'futurestore.sid', // Custom name to avoid collision with generic connect.sid
   store: sessionStore, 
   secret: process.env.SESSION_SECRET || 'change-me',
   resave: true,
