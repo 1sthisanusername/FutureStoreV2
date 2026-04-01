@@ -70,6 +70,7 @@ app.use(cors({
 }));
 
 // ── Body parsers ──────────────────────────────────────────────────
+app.use(express.json({ limit: '512kb' }));
 app.use(express.urlencoded({ extended: true, limit: '512kb' }));
 
 // ── Session ───────────────────────────────────────────────────────
