@@ -91,14 +91,15 @@ if (process.env.NODE_ENV === 'production' && process.env.SESSION_SECRET === 'cha
 }
 
 app.use(session({
-  store: sessionStore, // Falls back to default MemoryStore in tests
+  store: sessionStore, 
   secret: process.env.SESSION_SECRET || 'change-me',
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
+  proxy: true,
   cookie: {
-    secure:   process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL.includes('localhost'),
+    secure:   true, 
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'none', 
     maxAge:   24 * 60 * 60 * 1000, 
   },
 }));
