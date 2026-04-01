@@ -1698,7 +1698,7 @@ const Validate = {
 // ── API Fetch Utility ───────────────────────────────────────────
 // Handles communication with the Node.js backend, including
 // automatic refresh token rotation on 401 Unauthorized.
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 async function apiFetch(url, opts = {}) {
   const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
   
@@ -1747,7 +1747,11 @@ const ClientRateLimit = (() => {
 // PAYMENT KEYS — replace with real credentials
 // ================================================================
 const PAYPAL_CLIENT_ID='AUq38z0Ra6r4LfVsEhU2fY9xjbPYJGoxTi8VwfC6J0GoJhzTMtIfPk6qCjymSh85ZECRpV3XyU4kfCo4';
-const RAZORPAY_KEY_ID='rzp_test_SSMRZg5j2iPQ9l';
+const RAZORPAY_KEY_ID='rzp_test_SSMRZg5j2iPQ9l';+
+
+
+
+
 
 // ================================================================
 // FILTER STATE — mirrors SQL query parameters
