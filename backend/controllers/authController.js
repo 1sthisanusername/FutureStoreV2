@@ -2,8 +2,6 @@
 const bcrypt  = require('bcrypt');
 const crypto  = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const jwt      = require('jsonwebtoken');
-const svgCaptcha = require('svg-captcha');
 const pool    = require('../config/db');
 const { signAccess, signRefresh, storeRefreshToken, rotateRefreshToken, revokeAllTokens } = require('../utils/jwt');
 const { sendWelcome, sendPasswordReset, sendEmailVerification } = require('../services/emailService');
@@ -23,6 +21,8 @@ const setTokenCookies = (res, accessToken, refreshToken) => {
 
 // ── CAPTCHA ──────────────────────────────────────────────────────
 const getCaptcha = (req, res) => {
+  const jwt = require('jsonwebtoken'); 
+  const svgCaptcha = require('svg-captcha');
   try {
     const captcha = svgCaptcha.create({ 
       size: 4, 
@@ -56,6 +56,7 @@ const getCaptcha = (req, res) => {
 
 // ── REGISTER ────────────────────────────────────────────────────
 const register = async (req, res) => {
+  const jwt = require('jsonwebtoken');
   const { name, email, password, captcha, captchaToken } = req.body;
 
   // Verify CAPTCHA using the token (Stateless)
@@ -116,6 +117,7 @@ const register = async (req, res) => {
 
 // ── LOGIN ────────────────────────────────────────────────────────
 const login = async (req, res) => {
+  const jwt = require('jsonwebtoken');
   const { email, password, captcha, captchaToken } = req.body;
 
   // Verify CAPTCHA using the token (Stateless)
