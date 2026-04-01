@@ -51,11 +51,15 @@ app.use(helmet({
 // ── CORS ──────────────────────────────────────────────────────────
 app.use(cors({
   origin: (origin, callback) => {
-    // In development or if it's a local origin, always allow
+    // Allow same-origin (no origin header), localhost, and Vercel deployments
     if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
       return callback(null, true);
     }
-    // Otherwise check against production URL
+    // Allow any Vercel deployment (preview + production)
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    // Check against explicit production URL
     if (origin === process.env.FRONTEND_URL) {
       return callback(null, true);
     }
