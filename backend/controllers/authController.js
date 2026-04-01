@@ -3,6 +3,7 @@ const bcrypt  = require('bcrypt');
 const crypto  = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const jwt      = require('jsonwebtoken');
+const svgCaptcha = require('svg-captcha');
 const pool    = require('../config/db');
 const { signAccess, signRefresh, storeRefreshToken, rotateRefreshToken, revokeAllTokens } = require('../utils/jwt');
 const { sendWelcome, sendPasswordReset, sendEmailVerification } = require('../services/emailService');
