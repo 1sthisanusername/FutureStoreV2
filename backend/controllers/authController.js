@@ -22,29 +22,35 @@ const setTokenCookies = (res, accessToken, refreshToken) => {
 
 // ── CAPTCHA ──────────────────────────────────────────────────────
 const getCaptcha = (req, res) => {
-  const captcha = svgCaptcha.create({ 
-    size: 4, 
-    noise: 0, 
-    color: false, 
-    background: '#ffffff', 
-    width: 140, 
-    height: 44, 
-    fontSize: 38 
-  });
+  try {
+    const captcha = svgCaptcha.create({ 
+      size: 4, 
+      noise: 0, 
+      color: false, 
+      background: '#ffffff', 
+      width: 140, 
+      height: 44, 
+      fontSize: 38 
+    });
 
-  // Create a short-lived token for the captcha solution
-  const captchaToken = jwt.sign(
-    { text: captcha.text.toLowerCase() },
-    process.env.SESSION_SECRET || 'change-me',
-    { expiresIn: '5m' }
-  );
+    const secret = process.env.SESSION_SECRET || 'fallback-secret-123';
+    
+    // Create token
+    const captchaToken = jwt.sign(
+      { text: captcha.text.toLowerCase() },
+      secret,
+      { expiresIn: '5m' }
+    );
 
-  // Return as JSON instead of raw SVG
-  return res.json({ 
-    success: true, 
-    svg: captcha.data, 
-    captchaToken: captchaToken 
-  });
+    return res.json({ 
+      success: true, 
+      svg: captcha.data, 
+      captchaToken: captchaToken 
+    });
+  } catch (err) {
+    console.error('SERVER ERROR IN GETCAPTCHA:', err);
+    return res.status(500).json({ success: false, message: 'Captcha generation failed' });
+  }
 };
 
 // ── REGISTER ────────────────────────────────────────────────────
