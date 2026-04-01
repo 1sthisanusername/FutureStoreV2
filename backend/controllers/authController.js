@@ -34,7 +34,7 @@ const getCaptcha = (req, res) => {
       fontSize: 38 
     });
 
-    const secret = process.env.SESSION_SECRET || 'fallback-secret-123';
+    const secret = process.env.SESSION_SECRET || 'future-store-v2-ultimate-secret-key';
     
     // Create token
     const captchaToken = jwt.sign(
@@ -63,9 +63,11 @@ const register = async (req, res) => {
   if (captcha !== 'bypass') {
     try {
       if (!captchaToken) throw new Error('Missing CAPTCHA token.');
-      const decoded = jwt.verify(captchaToken, process.env.SESSION_SECRET || 'change-me');
+      const secret = process.env.SESSION_SECRET || 'future-store-v2-ultimate-secret-key';
+      const decoded = jwt.verify(captchaToken, secret);
       if (captcha.toLowerCase() !== decoded.text) throw new Error('Invalid CAPTCHA.');
     } catch (err) {
+      console.error('CAPTCHA verification failed:', err.message);
       return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
     }
   }
@@ -124,9 +126,11 @@ const login = async (req, res) => {
   if (captcha !== 'bypass') {
     try {
       if (!captchaToken) throw new Error('Missing CAPTCHA token.');
-      const decoded = jwt.verify(captchaToken, process.env.SESSION_SECRET || 'change-me');
+      const secret = process.env.SESSION_SECRET || 'future-store-v2-ultimate-secret-key';
+      const decoded = jwt.verify(captchaToken, secret);
       if (captcha.toLowerCase() !== decoded.text) throw new Error('Invalid CAPTCHA.');
     } catch (err) {
+      console.error('CAPTCHA verification failed:', err.message);
       return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
     }
   }
