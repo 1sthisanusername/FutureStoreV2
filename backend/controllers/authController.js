@@ -2,7 +2,7 @@
 const bcrypt  = require('bcrypt');
 const crypto  = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const svgCaptcha = require('svg-captcha');
+const jwt      = require('jsonwebtoken');
 const pool    = require('../config/db');
 const { signAccess, signRefresh, storeRefreshToken, rotateRefreshToken, revokeAllTokens } = require('../utils/jwt');
 const { sendWelcome, sendPasswordReset, sendEmailVerification } = require('../services/emailService');
@@ -31,16 +31,36 @@ const getCaptcha = (req, res) => {
     height: 44, 
     fontSize: 38 
   });
-  req.session.captchaText = captcha.text.toLowerCase();
-  res.type('svg').send(captcha.data);
+
+  // Create a short-lived token for the captcha solution
+  const captchaToken = jwt.sign(
+    { text: captcha.text.toLowerCase() },
+    process.env.SESSION_SECRET || 'change-me',
+    { expiresIn: '5m' }
+  );
+
+  // Return as JSON instead of raw SVG
+  return res.json({ 
+    success: true, 
+    svg: captcha.data, 
+    captchaToken: captchaToken 
+  });
 };
 
 // ── REGISTER ────────────────────────────────────────────────────
 const register = async (req, res) => {
-  const { name, email, password, captcha } = req.body;
+  const { name, email, password, captcha, captchaToken } = req.body;
 
-  if (captcha !== 'bypass' && (!captcha || captcha.toLowerCase() !== req.session.captchaText))
-    return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
+  // Verify CAPTCHA using the token (Stateless)
+  if (captcha !== 'bypass') {
+    try {
+      if (!captchaToken) throw new Error('Missing CAPTCHA token.');
+      const decoded = jwt.verify(captchaToken, process.env.SESSION_SECRET || 'change-me');
+      if (captcha.toLowerCase() !== decoded.text) throw new Error('Invalid CAPTCHA.');
+    } catch (err) {
+      return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
+    }
+  }
 
   try {
     const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -89,10 +109,18 @@ const register = async (req, res) => {
 
 // ── LOGIN ────────────────────────────────────────────────────────
 const login = async (req, res) => {
-  const { email, password, captcha } = req.body;
+  const { email, password, captcha, captchaToken } = req.body;
 
-  if (captcha !== 'bypass' && (!captcha || captcha.toLowerCase() !== req.session.captchaText))
-    return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
+  // Verify CAPTCHA using the token (Stateless)
+  if (captcha !== 'bypass') {
+    try {
+      if (!captchaToken) throw new Error('Missing CAPTCHA token.');
+      const decoded = jwt.verify(captchaToken, process.env.SESSION_SECRET || 'change-me');
+      if (captcha.toLowerCase() !== decoded.text) throw new Error('Invalid CAPTCHA.');
+    } catch (err) {
+      return res.status(400).json({ success: false, message: 'Invalid CAPTCHA.' });
+    }
+  }
 
   try {
     const { rows: rows } = await pool.query('SELECT * FROM users WHERE email = $1 AND is_active = true', [email.toLowerCase().trim()]);

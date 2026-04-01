@@ -2279,6 +2279,8 @@ function clearMobileSearch(){
 // ================================================================
 let currentUser=null;
 
+let currentCaptchaToken = null; // Store the stateless captcha token
+
 function setUser(user){
   currentUser=user;
   if(user){
@@ -2392,15 +2394,16 @@ function generateCaptcha(){
 }
 
 async function refreshCaptcha(type){
+  const canvasId = type === 'login' ? 'loginCaptchaCanvas' : 'regCaptchaCanvas';
+  const valId = type === 'login' ? 'loginCaptchaVal' : 'regCaptchaVal';
+  
   try {
     const res = await fetch(API_BASE + '/auth/captcha', { credentials: 'include' });
-    const svg = await res.text();
-    if(type==='login'){
-      document.getElementById('loginCaptchaCanvas').innerHTML=svg;
-      document.getElementById('loginCaptchaVal').value='';
-    } else {
-      document.getElementById('regCaptchaCanvas').innerHTML=svg;
-      document.getElementById('regCaptchaVal').value='';
+    const data = await res.json();
+    if(data.success){
+      document.getElementById(canvasId).innerHTML = data.svg;
+      document.getElementById(valId).value = '';
+      currentCaptchaToken = data.captchaToken;
     }
   } catch(e) {
     console.error('Captcha fetch failed', e);
@@ -2454,7 +2457,7 @@ async function submitLogin(){
   try {
     const res = await apiFetch('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, captcha })
+      body: JSON.stringify({ email, password, captcha, captchaToken: currentCaptchaToken })
     });
     if(res.success){
       setUser(res.user);
@@ -2489,7 +2492,7 @@ async function submitRegister(){
   try {
     const res = await apiFetch('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password, captcha })
+      body: JSON.stringify({ name, email, password, captcha, captchaToken: currentCaptchaToken })
     });
     if(res.success){
       setUser(res.user);
