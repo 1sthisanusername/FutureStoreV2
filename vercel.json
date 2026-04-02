@@ -1,9 +1,7 @@
 {
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.js"
-    }
-  ]
+  "framework": null,
+  "buildCommand": "echo 'No build required for static frontend'",
+  "outputDirectory": ".",
+  "ignoreCommand": "exit 1",
+  "cleanUrls": true
 }
