@@ -10,8 +10,8 @@ const { sendOTP, verifyOTP } = require('../services/smsService');
 const SALT_ROUNDS = 12;
 const COOKIE_OPTS = { 
   httpOnly: true, 
-  sameSite: 'lax', 
-  secure: process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL.includes('localhost')
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
+  secure: process.env.NODE_ENV === 'production'
 };
 
 const setTokenCookies = (res, accessToken, refreshToken) => {
