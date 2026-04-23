@@ -1345,6 +1345,7 @@ body.guest .cover-gate-banner { display: flex; }
         <button class="nav-jump-btn" onclick="adminTab('users')" id="atab-users">👤 Users</button>
         <button class="nav-jump-btn" onclick="adminTab('coupons')" id="atab-coupons">🏷️ Coupons</button>
         <button class="nav-jump-btn" onclick="adminTab('subs')" id="atab-subs">📧 Subs</button>
+        <button class="nav-jump-btn" onclick="adminTab('threats')" id="atab-threats">🚨 Threats</button>
         <button class="nav-jump-btn" onclick="adminTab('logs')" id="atab-logs">🛡️ Logs</button>
         <button class="nav-jump-btn" onclick="adminTab('support')" id="atab-support">🎫 Support</button>
         <button class="nav-jump-btn" onclick="adminTab('stats')" id="atab-stats">📊 Stats</button>
@@ -1394,6 +1395,13 @@ body.guest .cover-gate-banner { display: flex; }
         <button class="nav-jump-btn" onclick="clearSecurityLogs()" style="border-color:#e53935;color:#e53935">Clear Logs</button>
       </div>
       <div id="securityLogsTable"></div>
+    </div>
+    <div id="admin-threats" class="admin-tab-content" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-family:var(--font-display);font-size:18px">Security Threat Alerts</h3>
+        <button class="nav-jump-btn" onclick="renderAdminThreats()" style="padding:6px 12px">🔄 Refresh</button>
+      </div>
+      <div id="adminThreatsTable"></div>
     </div>
     <div id="admin-support" class="admin-tab-content" style="display:none"><div id="adminSupportTable"></div></div>
     <div id="admin-stats" class="admin-tab-content" style="display:none"><div id="adminStatsGrid"></div></div>
@@ -1543,6 +1551,9 @@ body.guest .cover-gate-banner { display: flex; }
     <div class="form-row" style="margin-top:10px">
       <div class="form-group"><label>Stock <span style="color:var(--accent)">*</span></label><input type="number" id="ebStock"></div>
       <div class="form-group"><label>Cover Color</label><input type="color" id="ebColor" value="#2C3E50" style="height:38px;padding:2px"></div>
+    </div>
+    <div class="form-group" style="margin-top:10px">
+      <label>Cover URL</label><input type="text" id="ebCoverUrl" placeholder="https://example.com/cover.jpg">
     </div>
     <div class="form-group" style="margin-top:10px">
       <label>Badge</label>
@@ -2521,14 +2532,23 @@ function renderSecurityLogs(){
   
   // Now fetching from the same source as dashboard (for admin visibility)
   apiFetch('/admin/dashboard').then(res => {
-    const logs = (res.data?.auditLogs || []).filter(l => filter==='all'||l.type===filter);
+    const logs = (res.data?.auditLogs || []).filter(l => filter==='all'||(l.action===filter || l.type===filter));
     if(!logs.length){el.innerHTML='<p style="padding:20px;text-align:center;color:var(--mid-brown)">No security logs found.</p>';return;}
     el.innerHTML=`<table class="admin-table"><thead><tr><th>Time</th><th>Event</th><th>Actor</th><th>Detail</th></tr></thead><tbody>
       ${logs.map(l=>`<tr>
         <td style="font-size:11px">${new Date(l.created_at).toLocaleString()}</td>
-        <td><span class="status-badge" style="background:var(--warm-white);color:var(--mid-brown)">${l.action_type || l.type}</span></td>
-        <td style="font-size:12px">${l.actor || l.user_id || 'system'}</td>
-        <td style="font-size:12px">${sanitize(l.details || l.detail)}</td>
+        <td><span class="status-badge" style="background:var(--warm-white);color:var(--mid-brown)">${sanitize(String(l.action || l.type || 'Activity'))}</span></td>
+        <td style="font-size:12px">${sanitize(String(l.actor || l.user_id || 'system'))}</td>
+        <td style="font-size:12px">
+          ${(function(){
+            try {
+              let d = l.details;
+              if (typeof d === 'string') d = JSON.parse(d);
+              if (d && typeof d === 'object') return sanitize(d.note || JSON.stringify(d));
+              return sanitize(String(d || '—'));
+            } catch(e) { return sanitize(String(l.details || '—')); }
+          })()}
+        </td>
       </tr>`).join('')}</tbody></table>`;
   }).catch(() => {
     el.innerHTML='<p style="padding:20px;text-align:center;color:red">Failed to fetch server logs.</p>';
@@ -3353,7 +3373,7 @@ function goPageAdmin(){
 }
 function adminTab(tab){
   _adminTab=tab;
-  ['orders','books','users','coupons','subs','logs','support','stats'].forEach(t=>{
+  ['orders','books','users','coupons','subs','threats','logs','support','stats'].forEach(t=>{
     const btn=document.getElementById('atab-'+t);if(!btn)return;
     const a=t===tab;btn.style.background=a?'var(--cta)':'';btn.style.color=a?'white':'';btn.style.borderColor=a?'var(--cta)':'';
   });
@@ -3364,6 +3384,7 @@ function adminTab(tab){
   if(tab==='users')renderAdminUsers();
   if(tab==='coupons')renderAdminCoupons();
   if(tab==='subs')renderAdminSubscribers();
+  if(tab==='threats')renderAdminThreats();
   if(tab==='logs')renderSecurityLogs();
   if(tab==='support')renderAdminSupport();
   if(tab==='stats')renderAdminStats();
@@ -3467,7 +3488,7 @@ async function renderAdminBooks(){
     const books = res.data;
     el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Cover</th><th>Title & Author</th><th>Genre</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody>
     ${books.map(b=>`<tr>
-      <td><div style="width:30px;height:40px;background:${b.cover_color||'#ddd'};border-radius:3px"></div></td>
+      <td><div style="width:30px;height:40px;background:${b.cover_url ? `url(${b.cover_url}) center/cover` : (b.cover_color||'#ddd')};border-radius:3px"></div></td>
       <td><div style="font-weight:500">${sanitize(b.title)}</div><div style="font-size:11px;color:var(--mid-brown)">${sanitize(b.author)}</div></td>
       <td style="font-size:12px">${b.genre}</td>
       <td style="font-weight:600">${fmt(b.price)}</td>
@@ -3481,6 +3502,32 @@ async function renderAdminBooks(){
       </td>
     </tr>`).join('')}</tbody></table></div>`;
   } catch(e) { el.innerHTML=`<p style="color:red">Error: ${e.message}</p>`; }
+}
+
+async function renderAdminThreats(){
+  const el=document.getElementById('adminThreatsTable'); if(!el)return;
+  el.innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
+  try {
+    const res = await apiFetch('/admin/threats');
+    const threats = res.data;
+    if(!threats.length){el.innerHTML='<p style="padding:40px;text-align:center;color:var(--mid-brown)">No security threats detected. System secure. ✅</p>';return;}
+    el.innerHTML=`<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Time</th><th>Threat Type</th><th>Source IP</th><th>Details</th></tr></thead><tbody>
+    ${threats.map(t=>`<tr>
+      <td style="font-size:11px;white-space:nowrap">${new Date(t.created_at).toLocaleString()}</td>
+      <td><span class="status-badge" style="background:#fff5f5;color:#e53935;border:1px solid #ffcdd2;font-weight:600">🚨 ${sanitize(t.action)}</span></td>
+      <td style="font-weight:700;font-size:12px;color:var(--mid-brown)">${t.ip_address}</td>
+      <td style="font-size:12px;max-width:300px;white-space:normal;line-height:1.4">
+        ${(function(){
+          try {
+            let d = t.details;
+            if (typeof d === 'string') d = JSON.parse(d);
+            if (d && typeof d === 'object') return sanitize(d.note || JSON.stringify(d));
+            return sanitize(String(d || '—'));
+          } catch(e) { return sanitize(String(t.details || '—')); }
+        })()}
+      </td>
+    </tr>`).join('')}</tbody></table></div>`;
+  } catch(e) { el.innerHTML=`<p style="color:red;padding:20px;text-align:center">Error: ${e.message}</p>`; }
 }
 
 function openAddBookModal(){
@@ -3504,6 +3551,7 @@ async function openEditBook(id){
     document.getElementById('ebPrice').value = b.price;
     document.getElementById('ebStock').value = b.stock;
     document.getElementById('ebColor').value = b.cover_color || '#2C3E50';
+    document.getElementById('ebCoverUrl').value = b.cover_url || '';
     document.getElementById('ebBadge').value = b.badge || '';
     document.getElementById('ebDesc').value = b.description || '';
     document.getElementById('ebActive').checked = b.is_active;
@@ -3526,6 +3574,7 @@ async function submitEditBook(){
     price: parseFloat(document.getElementById('ebPrice').value),
     stock: parseInt(document.getElementById('ebStock').value),
     cover_color: document.getElementById('ebColor').value,
+    cover_url: document.getElementById('ebCoverUrl').value.trim() || null,
     badge: document.getElementById('ebBadge').value || null,
     description: document.getElementById('ebDesc').value,
     is_active: document.getElementById('ebActive').checked
@@ -3545,11 +3594,12 @@ async function submitAddBook(){
   const price=parseFloat(document.getElementById('abPrice').value);
   const stock=parseInt(document.getElementById('abStock').value);
   const cover_color=document.getElementById('abColor').value;
+  const cover_url=document.getElementById('abCoverUrl').value.trim()||null;
   const badge=document.getElementById('abBadge').value||null;
   const description=document.getElementById('abDesc').value;
   if(!title||!author||!genre||isNaN(price)||isNaN(stock)){showToast('Please fill all required fields','error');return;}
   try {
-    const res=await apiFetch('/admin/books',{method:'POST',body:JSON.stringify({title,author,genre,price,stock,cover_color,badge,description})});
+    const res=await apiFetch('/admin/books',{method:'POST',body:JSON.stringify({title,author,genre,price,stock,cover_color,cover_url,badge,description})});
     if(res.success){showToast('Book added successfully!');closeAddBookModal();renderAdminBooks();}
   } catch(e){showToast(e.message,'error');}
 }
@@ -3660,7 +3710,10 @@ function bookCard(b){
   const badgePart=out?'<span class="book-badge badge-out-of-stock">Out of Stock</span>':low?`<span class="book-badge badge-low-stock">Only ${stock} left</span>`:badgeHTML(b.badge);
   const addBtn=out?`<button class="add-btn" disabled style="background:#9e9e9e;cursor:not-allowed" title="Out of stock">—</button>`:`<button class="add-btn" onclick="event.stopPropagation();addToCart(${b.id})">+</button>`;
   return`<div class="book-card${out?' out-of-stock':''}" onclick="openPreview(${b.id})">
-    <div class="bcc" style="background:${b.cover_color||'#2C3E50'}">${badgePart}<div class="bcc-title">${sanitize(b.title)}</div><div class="bcc-author">${sanitize(b.author)}</div></div>
+    <div class="bcc" style="background:${b.cover_url ? `url(${b.cover_url}) center/cover no-repeat` : (b.cover_color||'#2C3E50')}">
+      ${b.cover_url ? '' : `<div class="bcc-title">${sanitize(b.title)}</div><div class="bcc-author">${sanitize(b.author)}</div>`}
+      ${badgePart}
+    </div>
     <div>
       <div class="book-title">${sanitize(b.title)}</div>
       <div class="book-author">${sanitize(b.author)}</div>
@@ -3692,7 +3745,16 @@ async function openPreview(id){
     const b = res.data;
     
     addRecentlyViewed(id);
-    document.getElementById('prevArt').style.background=b.cover_color;
+    const art = document.getElementById('prevArt');
+    if (b.cover_url) {
+      art.style.background = `url(${b.cover_url}) center/cover no-repeat`;
+      document.getElementById('prevArtTitle').style.display = 'none';
+      document.getElementById('prevArtAuthor').style.display = 'none';
+    } else {
+      art.style.background = b.cover_color || '#2C3E50';
+      document.getElementById('prevArtTitle').style.display = '';
+      document.getElementById('prevArtAuthor').style.display = '';
+    }
     document.getElementById('prevArtTitle').textContent=b.title;
     document.getElementById('prevArtAuthor').textContent=b.author;
     document.getElementById('prevGenre').textContent=b.genre;
@@ -4044,6 +4106,9 @@ refreshCaptcha('reg');
           <option value="SALE">Sale</option>
           <option value="CLASSIC">Classic</option>
         </select>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Cover URL</label><input type="text" id="abCoverUrl" class="auth-input" placeholder="https://example.com/cover.jpg">
       </div>
     </div>
     <div class="form-group" style="margin-top:12px"><label>Description</label><textarea id="abDesc" class="auth-input" style="min-height:80px"></textarea></div>

@@ -35,7 +35,7 @@ const getDashboard = async (req, res) => {
         'SELECT b.id,b.title,b.author,b.price,b.stock, COALESCE(SUM(oi.qty),0) AS units_sold FROM books b LEFT JOIN order_items oi ON oi.book_id=b.id GROUP BY b.id ORDER BY units_sold DESC LIMIT 5'
       ),
       pool.query(
-        'SELECT al.*,u.name AS actor FROM audit_log al LEFT JOIN users u ON u.id=al.user_id ORDER BY al.created_at DESC LIMIT 20'
+        'SELECT al.id, al.user_id, al.action, al.entity, al.details, al.ip_address, al.created_at, u.name AS actor FROM audit_log al LEFT JOIN users u ON u.id=al.user_id ORDER BY al.created_at DESC LIMIT 20'
       ),
       pool.query('SELECT id,title,stock,genre FROM books WHERE stock<=5 AND is_active=true ORDER BY stock ASC'),
     ]);

@@ -128,11 +128,8 @@ if (configured) {
 app.use(sanitizeQuery, preventHpp);
 
 // ── Logging ───────────────────────────────────────────────────────
-const accessLogStream = fs.createWriteStream(path.join(__dirname, '..', 'security_lab', 'server.log'), { flags: 'a' });
-
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-  app.use(morgan('combined', { stream: accessLogStream }));
 }
 
 // ── Static ────────────────────────────────────────────────────────

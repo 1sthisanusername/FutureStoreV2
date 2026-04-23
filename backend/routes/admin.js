@@ -8,6 +8,7 @@ const { sanitizeBody, sanitizeQuery, preventHpp } = require('../middleware/sanit
 const audit    = require('../middleware/auditLog');
 const { adminWriteLimiter } = require('../middleware/rateLimiter');
 const { upload, getFileUrl } = require('../services/s3Service');
+const pool = require('../config/db');
 
 router.use(authenticate, adminOnly, sanitizeBody, sanitizeQuery, preventHpp);
 
@@ -117,7 +118,30 @@ router.patch('/users/:id/toggle',
   audit('TOGGLE_USER', 'user'), ctrl.toggleUserActive
 );
 
-// ── SUBSCRIBERS ───────────────────────────────────────────────────
-router.get('/subscribers', ctrl.getSubscribers);
+// ── SECURITY THREATS ──────────────────────────────────────────────
+router.get('/threats', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM audit_log WHERE entity = 'SECURITY_THREAT' ORDER BY created_at DESC LIMIT 100"
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch threats.' });
+  }
+});
+
+router.post('/threats', async (req, res) => {
+  try {
+    const { threat_type, source_ip, details } = req.body;
+    await pool.query(
+      `INSERT INTO audit_log (action, entity, details, ip_address) 
+       VALUES ($1, $2, $3, $4)`,
+      [threat_type, 'SECURITY_THREAT', details, source_ip]
+    );
+    res.json({ success: true, message: 'Threat alert logged.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to log threat.' });
+  }
+});
 
 module.exports = router;

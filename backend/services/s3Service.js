@@ -39,19 +39,16 @@ try {
   }
 } catch (_) {}
 
-// Fallback: local disk storage for dev
+// Fallback: memory storage (no local disk saving)
 if (!upload) {
   upload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, path.join(__dirname, '../public/covers')),
-      filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/\s/g, '_')}`),
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       cb(null, /jpeg|jpg|png|webp/.test(file.mimetype));
     },
   });
-  console.log('💾  Local image storage (S3 not configured)');
+  console.log('⚠️   Cloud storage not configured. Images will NOT be saved to disk.');
 }
 
 // Returns the public URL after upload
