@@ -351,18 +351,25 @@ const updateProfile = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+    process.stderr.write('DEBUG: Change password start\n');
     const { rows: [user] } = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    process.stderr.write('DEBUG: User fetched: ' + (!!user) + '\n');
     
+    if (!user) throw new Error('User not found in DB');
+
     const match = await bcrypt.compare(currentPassword, user.password_hash);
+    console.log('DEBUG: Password matches:', match);
     if (!match) return res.status(401).json({ success: false, message: 'Incorrect current password.' });
 
     const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    console.log('DEBUG: New hash generated');
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
-    await revokeAllTokens(req.user.id); // Security: force logout on other devices
+    console.log('DEBUG: DB updated');
+    await revokeAllTokens(req.user.id);
 
     res.json({ success: true, message: 'Password changed successfully. Please log in again.' });
   } catch (err) {
-    console.error('Change password error:', err);
+    process.stderr.write('Change password error: ' + err.message + '\n' + err.stack + '\n');
     res.status(500).json({ success: false, message: 'Failed to change password.' });
   }
 };

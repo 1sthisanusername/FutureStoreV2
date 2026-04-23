@@ -120,21 +120,4 @@ router.patch('/users/:id/toggle',
 // ── SUBSCRIBERS ───────────────────────────────────────────────────
 router.get('/subscribers', ctrl.getSubscribers);
 
-// Add new book
-router.post('/books', [
-    body('title').notEmpty(),
-    body('author').notEmpty(),
-    body('price').isFloat({ min: 0 })
-], ctrl.createBook);
-
-// Update existing book
-router.put('/books/:id', [
-    body('title').notEmpty(),
-    body('author').notEmpty(),
-    body('price').isFloat({ min: 0 })
-], ctrl.updateBook);
-
-// Delete book
-router.delete('/books/:id', ctrl.deleteBook);
-
 module.exports = router;

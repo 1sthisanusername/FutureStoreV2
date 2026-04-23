@@ -16,7 +16,7 @@ const storeRefreshToken = async (userId, rawToken) => {
   const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
   const expiresAt = new Date(Date.now() + REFRESH_MS);
   await pool.query(
-    'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?,?,?)',
+    'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2,$3)',
     [userId, hash, expiresAt]
   );
   return rawToken;
@@ -24,22 +24,21 @@ const storeRefreshToken = async (userId, rawToken) => {
 
 const rotateRefreshToken = async (userId, oldRaw) => {
   const oldHash = crypto.createHash('sha256').update(oldRaw).digest('hex');
-  const [rows] = await pool.query(
-    'SELECT * FROM refresh_tokens WHERE token_hash = ? AND user_id = ? AND expires_at > NOW()',
+  const { rows } = await pool.query(
+    'SELECT * FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2 AND expires_at > NOW()',
     [oldHash, userId]
   );
   if (!rows.length) throw new Error('Invalid or expired refresh token');
 
   // Delete old token (rotation)
-  await pool.query('DELETE FROM refresh_tokens WHERE token_hash = ?', [oldHash]);
-
+  await pool.query('DELETE FROM refresh_tokens WHERE token_hash = $1', [oldHash]);
   const newRaw = signRefresh();
   await storeRefreshToken(userId, newRaw);
   return newRaw;
 };
 
 const revokeAllTokens = async (userId) => {
-  await pool.query('DELETE FROM refresh_tokens WHERE user_id = ?', [userId]);
+  await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
 };
 
 module.exports = { signAccess, signRefresh, storeRefreshToken, rotateRefreshToken, revokeAllTokens };

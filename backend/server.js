@@ -4,8 +4,10 @@ const express      = require('express');
 const helmet       = require('helmet');
 const cors         = require('cors');
 const session      = require('express-session');
+const cookieParser = require('cookie-parser');
 const morgan       = require('morgan');
 const path         = require('path');
+const fs           = require('fs');
 const Sentry       = require('@sentry/node');
 const pgSession    = require('connect-pg-simple')(session);
 const pool         = require('./config/db');
@@ -35,11 +37,13 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:  ["'self'"],
-      scriptSrc:   ["'self'", 'https://www.paypal.com', 'https://checkout.razorpay.com'],
-      styleSrc:    ["'self'", "'unsafe-inline'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'", 'https://www.paypal.com', 'https://checkout.razorpay.com'],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       imgSrc:      ["'self'", 'data:', 'https:'],
       connectSrc:  ["'self'"],
-      frameSrc:    ["'none'"],
+      fontSrc:     ["'self'", 'https://fonts.gstatic.com'],
+      frameSrc:    ["'self'", 'https://www.paypal.com'],
       objectSrc:   ["'none'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
     },
@@ -72,6 +76,7 @@ app.use(cors({
 // ── Body parsers ──────────────────────────────────────────────────
 app.use(express.json({ limit: '512kb' }));
 app.use(express.urlencoded({ extended: true, limit: '512kb' }));
+app.use(cookieParser());
 
 // ── Session ───────────────────────────────────────────────────────
 let sessionStore;
@@ -96,9 +101,9 @@ app.use(session({
   saveUninitialized: true,
   proxy: true,
   cookie: {
-    secure:   true, 
+    secure:   process.env.NODE_ENV === 'production', 
     httpOnly: true,
-    sameSite: 'none', 
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
     maxAge:   24 * 60 * 60 * 1000, 
   },
 }));
@@ -123,8 +128,12 @@ if (configured) {
 app.use(sanitizeQuery, preventHpp);
 
 // ── Logging ───────────────────────────────────────────────────────
-if (process.env.NODE_ENV !== 'test')
+const accessLogStream = fs.createWriteStream(path.join(__dirname, '..', 'security_lab', 'server.log'), { flags: 'a' });
+
+if (process.env.NODE_ENV !== 'test') {
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  app.use(morgan('combined', { stream: accessLogStream }));
+}
 
 // ── Static ────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
@@ -182,8 +191,9 @@ app.use((err, req, res, next) => {
 });
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`\n🚀  Future Store API  →  http://localhost:${PORT}`);
+  const HOST = process.env.HOST || '127.0.0.1';
+app.listen(PORT, HOST, () => {
+    console.log(`\n🚀  Future Store API  →  http://${HOST}:${PORT}`);
     console.log(`🛡️   Rate limiting     :  ✅ (auth:10/15m, search:60/m, order:5/m, api:120/m)`);
     console.log(`🧹  Input sanitisation :  ✅ (XSS strip, HPP, HTML entity escape, query limits)`);
     console.log(`🔒  Helmet CSP         :  ✅`);
