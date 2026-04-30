@@ -65,10 +65,28 @@ const placeOrder = async (req, res) => {
 
     await conn.query('COMMIT'); conn.release();
 
-    const fullOrder = await pool.query('SELECT * FROM orders WHERE id=$1', [orderId]);
-    sendOrderConfirmation(fullOrder.rows[0], req.user).catch(()=>{});
+    const { rows: fullOrder } = await pool.query(
+      `SELECT o.*, oi.qty, oi.unit_price, b.title, b.author
+       FROM orders o
+       JOIN order_items oi ON oi.order_id = o.id
+       JOIN books b ON b.id = oi.book_id
+       WHERE o.id = $1`,
+      [orderId]
+    );
 
-    res.status(201).json({ success:true, message:'Order placed!', data: { orderId, orderNumber, total, discount } });
+    const orderData = {
+      ...fullOrder[0],
+      items: fullOrder.map(r => ({
+        title: r.title,
+        qty: r.qty,
+        price: r.unit_price
+      })),
+      shipping: parseFloat(fullOrder[0].shipping_fee)
+    };
+
+    sendOrderConfirmation(fullOrder[0], req.user).catch(()=>{});
+
+    res.status(201).json({ success:true, message:'Order placed!', data: orderData });
   } catch (err) {
     if (conn) { await conn.query('ROLLBACK'); conn.release(); }
     res.status(400).json({ success:false, message: err.message });

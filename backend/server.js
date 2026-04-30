@@ -37,13 +37,13 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:  ["'self'"],
-      scriptSrc:   ["'self'", "'unsafe-inline'", 'https://www.paypal.com', 'https://checkout.razorpay.com'],
+      scriptSrc:   ["'self'", "'unsafe-inline'", 'https://*.paypal.com', 'https://*.paypalobjects.com', 'https://checkout.razorpay.com', 'https://cdnjs.cloudflare.com'],
       scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      imgSrc:      ["'self'", 'data:', 'https:'],
-      connectSrc:  ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://*.paypal.com'],
+      imgSrc:      ["'self'", 'data:', 'https:', 'https://*.paypal.com', 'https://*.paypalobjects.com', 'https://*.razorpay.com'],
+      connectSrc:  ["'self'", 'https://*.paypal.com', 'https://*.sandbox.paypal.com', 'https://api.razorpay.com', 'https://lumberjack.razorpay.com', 'https://cdnjs.cloudflare.com'],
       fontSrc:     ["'self'", 'https://fonts.gstatic.com'],
-      frameSrc:    ["'self'", 'https://www.paypal.com'],
+      frameSrc:    ["'self'", 'https://*.paypal.com', 'https://*.sandbox.paypal.com', 'https://api.razorpay.com'],
       objectSrc:   ["'none'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
     },

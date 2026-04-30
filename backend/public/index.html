@@ -34,6 +34,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root{
   --cream:#FFFFF0;
@@ -1393,13 +1395,17 @@ body.guest .cover-gate-banner { display: flex; }
           <option value="register">Registrations</option>
         </select>
         <button class="nav-jump-btn" onclick="clearSecurityLogs()" style="border-color:#e53935;color:#e53935">Clear Logs</button>
+        <button class="nav-jump-btn" onclick="downloadSecurityPDF('logs')" style="border-color:var(--cta);color:var(--cta)">📥 Download PDF</button>
       </div>
       <div id="securityLogsTable"></div>
     </div>
     <div id="admin-threats" class="admin-tab-content" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <h3 style="font-family:var(--font-display);font-size:18px">Security Threat Alerts</h3>
-        <button class="nav-jump-btn" onclick="renderAdminThreats()" style="padding:6px 12px">🔄 Refresh</button>
+        <div style="display:flex;gap:8px">
+          <button class="nav-jump-btn" onclick="downloadSecurityPDF('threats')" style="padding:6px 12px;border-color:var(--cta);color:var(--cta)">📥 Download PDF</button>
+          <button class="nav-jump-btn" onclick="renderAdminThreats()" style="padding:6px 12px">🔄 Refresh</button>
+        </div>
       </div>
       <div id="adminThreatsTable"></div>
     </div>
@@ -3528,6 +3534,74 @@ async function renderAdminThreats(){
       </td>
     </tr>`).join('')}</tbody></table></div>`;
   } catch(e) { el.innerHTML=`<p style="color:red;padding:20px;text-align:center">Error: ${e.message}</p>`; }
+}
+
+async function downloadSecurityPDF(type) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  
+  showToast('Generating PDF...');
+  
+  try {
+    let data = [];
+    let title = '';
+    let headers = [];
+    
+    if (type === 'threats') {
+      const res = await apiFetch('/admin/threats');
+      data = res.data.map(t => [
+        new Date(t.created_at).toLocaleString(),
+        t.action,
+        t.ip_address,
+        (function(){
+          try {
+            let d = t.details;
+            if (typeof d === 'string') d = JSON.parse(d);
+            return d?.note || JSON.stringify(d) || '—';
+          } catch(e) { return String(t.details || '—'); }
+        })()
+      ]);
+      title = 'FutureStore Security Threat Report';
+      headers = [['Time', 'Threat Type', 'Source IP', 'Details']];
+    } else {
+      const logRes = await apiFetch('/admin/dashboard'); 
+      data = logRes.data.auditLogs.map(l => [
+        new Date(l.created_at).toLocaleString(),
+        l.action || l.type || 'Activity',
+        l.actor || l.user_id || 'system',
+        (function(){
+          try {
+            let d = l.details;
+            if (typeof d === 'string') d = JSON.parse(d);
+            return d?.note || JSON.stringify(d) || '—';
+          } catch(e) { return String(l.details || '—'); }
+        })()
+      ]);
+      title = 'FutureStore Security Audit Logs';
+      headers = [['Time', 'Event', 'Actor', 'Detail']];
+    }
+
+    doc.setFontSize(18);
+    doc.text(title, 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    
+    doc.autoTable({
+      head: headers,
+      body: data,
+      startY: 35,
+      theme: 'striped',
+      headStyles: { fillColor: [93, 138, 168] },
+      styles: { fontSize: 9 }
+    });
+    
+    doc.save(`futurestore_${type}_report_${Date.now()}.pdf`);
+    showToast('PDF Downloaded! ✅');
+  } catch(e) {
+    console.error(e);
+    showToast('Failed to generate PDF', 'danger');
+  }
 }
 
 function openAddBookModal(){
